@@ -8,8 +8,8 @@ It also includes a legacy PID-based runner script.
 
 ## Files
 
-- `.opencode/skills/opencode-persistent-subagent/SKILL.md` — the OpenCode skill definition
-- `.opencode/skills/opencode-persistent-subagent/scripts/` — helper scripts used by the skill
+- `.opencode/skills/opencode-subagent/SKILL.md` — the OpenCode skill definition
+- `.opencode/skills/opencode-subagent/scripts/` — helper scripts used by the skill
 - `opencode-subagent.sh` — legacy runner script (PID-based, macOS only)
 
 ---
@@ -27,24 +27,30 @@ It also includes a legacy PID-based runner script.
 
 This repo already places the skill in the project-local discovery path:
 
-- `.opencode/skills/opencode-persistent-subagent/SKILL.md`
+- `.opencode/skills/opencode-subagent/SKILL.md`
 
 OpenCode will discover it when running inside this git worktree (unless skills are disabled or denied by permissions).
 
 To install globally instead, copy the folder:
 
-- `.opencode/skills/opencode-persistent-subagent/`
+- `.opencode/skills/opencode-subagent/`
 
 to:
 
-- `~/.config/opencode/skills/opencode-persistent-subagent/`
+- `~/.config/opencode/skills/opencode-subagent/`
+
+## Tests
+
+```
+bun test tests/non-llm
+```
 
 ## Usage (recommended scripts)
 
 Start a new persistent session (creates a human-readable title and stores the `sessionId` mapping in an index file under the working directory):
 
 ```bash
-./.opencode/skills/opencode-persistent-subagent/scripts/run_subagent.sh \
+./.opencode/skills/opencode-subagent/scripts/run_subagent.sh \
 	--name "hello" \
 	--prompt "Hello world" \
 	--model opencode/gpt-5-nano
@@ -53,7 +59,7 @@ Start a new persistent session (creates a human-readable title and stores the `s
 Resume the same session later:
 
 ```bash
-./.opencode/skills/opencode-persistent-subagent/scripts/run_subagent.sh \
+./.opencode/skills/opencode-subagent/scripts/run_subagent.sh \
 	--name "hello" \
 	--resume \
 	--prompt "Continue with follow-ups"
@@ -62,13 +68,13 @@ Resume the same session later:
 Fetch just the last assistant result (no huge JSON dump):
 
 ```bash
-./.opencode/skills/opencode-persistent-subagent/scripts/extract_last.sh --name "hello"
+./.opencode/skills/opencode-subagent/scripts/extract_last.sh --name "hello"
 ```
 
 Search the subagent history (grep-like):
 
 ```bash
-./.opencode/skills/opencode-persistent-subagent/scripts/search_history.sh \
+./.opencode/skills/opencode-subagent/scripts/search_history.sh \
 	--name "hello" \
 	--pattern "closures|async"
 ```

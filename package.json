@@ -1,0 +1,14 @@
+{
+  "name": "opencode-subagent-skill-dev",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test": "bun test",
+    "test:nonllm": "bun test tests/non-llm",
+    "test:llm": "bun test tests/llm"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

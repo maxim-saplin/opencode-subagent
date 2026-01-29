@@ -9,18 +9,21 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 usage() {
   cat <<'EOF'
 Usage:
-  extract_last.sh (--name <logicalName> | --session <sessionId>) [--cwd <dir>] [--json]
+  search_history.sh (--name <logicalName> | --session <sessionId>) --pattern <regex> [--role any|user|assistant] [--cwd <dir>] [--json]
 
 Default output:
-  Prints last assistant message text.
+  One match per line:
+    [#<i> <role>] <snippet>
 
 With --json:
-  Prints { ok, sessionId, lastAssistantText }.
+  Prints { ok, sessionId, matches: [...] }.
 EOF
 }
 
 NAME=""
 SESSION_ID=""
+PATTERN=""
+ROLE="any"
 CWD=$(pwd)
 JSON_MODE=0
 TITLE_PREFIX="$TITLE_PREFIX_DEFAULT"
@@ -37,6 +40,8 @@ while [ $# -gt 0 ]; do
     --help|-h) usage; exit 0 ;;
     --name) NAME="$2"; shift 2 ;;
     --session) SESSION_ID="$2"; shift 2 ;;
+    --pattern) PATTERN="$2"; shift 2 ;;
+    --role) ROLE="$2"; shift 2 ;;
     --cwd) CWD="$2"; shift 2 ;;
     --json) JSON_MODE=1; shift 1 ;;
     --title-prefix) TITLE_PREFIX="$2"; shift 2 ;;
@@ -47,15 +52,18 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+[ -n "$PATTERN" ] || die "--pattern is required"
+
 require_cmd opencode
 require_cmd osascript
 
 CWD=$(cd "$CWD" && pwd)
 INDEX=$(index_path "$CWD")
+LOGF=$(log_path "$CWD")
 
 if [ -z "$SESSION_ID" ]; then
   [ -n "$NAME" ] || die "Either --name or --session is required"
-  SESSION_ID=$(index_get_session_id "$INDEX" "$NAME" || true)
+  SESSION_ID=$(resolve_session_id_by_name "$INDEX" "$LOGF" "$NAME" || true)
   if [ -z "$SESSION_ID" ]; then
     TITLE="${TITLE_PREFIX}${NAME}"
     SESSION_ID=$(opencode session list --format json 2>/dev/null | json_find_latest_session_id_by_title "$TITLE" || true)
@@ -66,18 +74,18 @@ fi
 
 EXPORT_TMP=$(mktemp -t opencode-subagent-export.XXXXXX)
 (cd "$CWD" && opencode export "$SESSION_ID" > "$EXPORT_TMP" 2>/dev/null) || true
-LAST_TEXT=""
+MATCHES_JSON='[]'
 if [ -s "$EXPORT_TMP" ]; then
-  LAST_TEXT=$(cat "$EXPORT_TMP" | json_extract_last_assistant_text || true)
+  MATCHES_JSON=$(cat "$EXPORT_TMP" | json_search_history "$PATTERN" "$ROLE")
 fi
 
 if [ "$JSON_MODE" -eq 1 ]; then
-  if [ -n "$LAST_TEXT" ]; then
-    LAST_JSON=$(json_quote "$LAST_TEXT")
-  else
-    LAST_JSON=null
-  fi
-  printf '%s\n' "{\"ok\":true,\"sessionId\":$(json_quote "$SESSION_ID"),\"lastAssistantText\":$LAST_JSON}"
+  printf '%s\n' "{\"ok\":true,\"sessionId\":$(json_quote "$SESSION_ID"),\"matches\":$MATCHES_JSON}"
 else
-  printf '%s\n' "$LAST_TEXT"
+  # Render matches JSON array into lines via osascript
+  printf '%s' "$MATCHES_JSON" | osascript -l JavaScript \
+    -e "ObjC.import('Foundation');" \
+    -e "const d=$.NSFileHandle.fileHandleWithStandardInput.readDataToEndOfFile;" \
+    -e "const input=$.NSString.alloc.initWithDataEncoding(d,$.NSUTF8StringEncoding).js.trim();" \
+    -e "if(!input){ ''; } else { const arr=JSON.parse(input); let out=''; for (const m of arr){ out += ('[#'+m.index+' '+m.role+'] '+m.snippet+'\\n'); } out; }"
 fi
