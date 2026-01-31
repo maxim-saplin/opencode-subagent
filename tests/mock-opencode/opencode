@@ -1,0 +1,223 @@
+#!/usr/bin/env node
+/* eslint-disable no-console */
+const fs = require("fs");
+const path = require("path");
+
+const args = process.argv.slice(2);
+const cmd = args[0];
+
+const cwd = process.cwd();
+const ROOT = process.env.OPENCODE_MOCK_DIR || path.join(cwd, ".mock-opencode");
+const SESSIONS_DIR = path.join(ROOT, "sessions");
+const COUNTER_FILE = path.join(ROOT, "counter.txt");
+
+function ensureDirs() {
+  fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+}
+
+function nowMs() {
+  return Date.now();
+}
+
+function readCounter() {
+  try {
+    return parseInt(fs.readFileSync(COUNTER_FILE, "utf8"), 10) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeCounter(n) {
+  fs.writeFileSync(COUNTER_FILE, String(n));
+}
+
+function nextSessionId() {
+  const n = readCounter() + 1;
+  writeCounter(n);
+  return `ses_${String(n).padStart(4, "0")}`;
+}
+
+function sessionPath(id) {
+  return path.join(SESSIONS_DIR, `${id}.json`);
+}
+
+function loadSession(id) {
+  const p = sessionPath(id);
+  if (!fs.existsSync(p)) return null;
+  return JSON.parse(fs.readFileSync(p, "utf8"));
+}
+
+function saveSession(sess) {
+  fs.writeFileSync(sessionPath(sess.id), JSON.stringify(sess));
+}
+
+function parseRunArgs(runArgs) {
+  let prompt = "";
+  let title = "";
+  let model = "";
+  let sessionId = "";
+  const files = [];
+
+  for (let i = 0; i < runArgs.length; i += 1) {
+    const a = runArgs[i];
+    if (a === "--title") {
+      title = runArgs[++i] || "";
+    } else if (a === "--model") {
+      model = runArgs[++i] || "";
+    } else if (a === "--session") {
+      sessionId = runArgs[++i] || "";
+    } else if (a === "--file") {
+      files.push(runArgs[++i]);
+    } else if (a === "--agent" || a === "--attach" || a === "--log" || a === "--print-logs") {
+      i += 1;
+    } else if (a.startsWith("--")) {
+      // ignore unknown flags with value
+      if (runArgs[i + 1] && !runArgs[i + 1].startsWith("--")) i += 1;
+    } else if (!prompt) {
+      prompt = a;
+    }
+  }
+
+  return { prompt, title, model, sessionId, files };
+}
+
+function parseModel(model) {
+  const fallback = process.env.OPENCODE_PSA_MODEL || "opencode/gpt-5-nano";
+  const m = model || fallback;
+  const [providerID, modelID] = m.includes("/") ? m.split("/") : ["opencode", m];
+  return { providerID, modelID };
+}
+
+function parseMockDirectives(prompt) {
+  const replyMatch = prompt.match(/MOCK:REPLY:([^\s]+)/);
+  const sleepMatch = prompt.match(/MOCK:SLEEP:([0-9.]+)/);
+  const exitMatch = prompt.match(/MOCK:EXIT:([0-9]+)/);
+  const attach = prompt.includes("MOCK:ATTACH");
+
+  return {
+    replyToken: replyMatch ? replyMatch[1] : "",
+    sleepSeconds: sleepMatch ? Number(sleepMatch[1]) : 0,
+    exitCode: exitMatch ? Number(exitMatch[1]) : null,
+    attach,
+  };
+}
+
+async function runCommand(runArgs) {
+  ensureDirs();
+  const { prompt, title, model, sessionId, files } = parseRunArgs(runArgs);
+  const now = nowMs();
+
+  let sess = null;
+  let id = sessionId;
+  if (id) {
+    sess = loadSession(id);
+  }
+  if (!sess) {
+    id = id || nextSessionId();
+    sess = {
+      id,
+      title: title || `session-${id}`,
+      created: now,
+      updated: now,
+      model: parseModel(model),
+      messages: [],
+    };
+  }
+
+  sess.updated = now;
+  sess.model = parseModel(model);
+
+  if (prompt) {
+    sess.messages.push({
+      info: { role: "user" },
+      parts: [{ type: "text", text: prompt }],
+    });
+  }
+  saveSession(sess);
+
+  const { replyToken, sleepSeconds, exitCode, attach } = parseMockDirectives(prompt || "");
+
+  if (sleepSeconds && sleepSeconds > 0) {
+    await new Promise((r) => setTimeout(r, sleepSeconds * 1000));
+  }
+
+  if (exitCode !== null) {
+    process.exit(exitCode);
+  }
+
+  let reply = replyToken || "OK";
+  if (attach && files.length > 0) {
+    try {
+      const content = fs.readFileSync(files[0], "utf8");
+      const match = content.match(/TOKEN:\s*(\S+)/);
+      reply = match ? match[1] : content.trim();
+    } catch {
+      reply = "ATTACH_ERROR";
+    }
+  }
+
+  sess = loadSession(id);
+  sess.updated = nowMs();
+  sess.messages.push({
+    info: { role: "assistant" },
+    parts: [{ type: "text", text: reply }],
+  });
+  saveSession(sess);
+
+  process.exit(0);
+}
+
+function listSessions() {
+  ensureDirs();
+  const files = fs.readdirSync(SESSIONS_DIR).filter((f) => f.endsWith(".json"));
+  const sessions = files.map((f) => {
+    const s = JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, f), "utf8"));
+    return {
+      id: s.id,
+      title: s.title,
+      created: s.created,
+      updated: s.updated,
+    };
+  });
+  sessions.sort((a, b) => b.updated - a.updated);
+  console.log(JSON.stringify({ sessions }));
+}
+
+function exportSession(id) {
+  ensureDirs();
+  const s = loadSession(id);
+  if (!s) {
+    console.error("Session not found");
+    process.exit(1);
+  }
+  const out = {
+    info: { model: s.model },
+    messages: s.messages || [],
+  };
+  console.log(JSON.stringify(out));
+}
+
+(async () => {
+  if (!cmd) {
+    console.error("Missing command");
+    process.exit(2);
+  }
+
+  if (cmd === "run") {
+    await runCommand(args.slice(1));
+    return;
+  }
+
+  if (cmd === "session" && args[1] === "list") {
+    listSessions();
+    return;
+  }
+
+  if (cmd === "export") {
+    exportSession(args[1]);
+    return;
+  }
+
+  console.error("Unknown command");
+  process.exit(2);
+})();

@@ -1,16 +1,18 @@
 # OpenCode Persistent Subagent Skill (macOS-friendly)
 
-This repo contains a **spec-compliant OpenCode skill** that helps an orchestrator run **persistent, resumable subagent sessions** via the OpenCode CLI.
+This skill lets you run named, persistent OpenCode subagents that you can resume later. You get simple commands to start, check status, fetch the latest answer, search history, and cancel runs—without losing the session thread.
 
-It also includes a legacy PID-based runner script.
+Quick start:
+- Start: `run_subagent.sh --name <name> --prompt <text>`
+- Check: `status.sh --json`
+- Result: `result.sh --name <name>`
 
 ---
 
 ## Files
 
-- `.opencode/skills/opencode-subagent/SKILL.md` — the OpenCode skill definition
-- `.opencode/skills/opencode-subagent/scripts/` — helper scripts used by the skill
-- `opencode-subagent.sh` — legacy runner script (PID-based, macOS only)
+- `.claude/skills/opencode-subagent/SKILL.md` — the OpenCode skill definition (v2)
+- `.claude/skills/opencode-subagent/scripts/` — helper scripts used by the skill
 
 ---
 
@@ -27,13 +29,13 @@ It also includes a legacy PID-based runner script.
 
 This repo already places the skill in the project-local discovery path:
 
-- `.opencode/skills/opencode-subagent/SKILL.md`
+- `.claude/skills/opencode-subagent/SKILL.md`
 
 OpenCode will discover it when running inside this git worktree (unless skills are disabled or denied by permissions).
 
 To install globally instead, copy the folder:
 
-- `.opencode/skills/opencode-subagent/`
+- `.claude/skills/opencode-subagent/`
 
 to:
 
@@ -41,16 +43,28 @@ to:
 
 ## Tests
 
-```
+```bash
 bun test tests/non-llm
 ```
 
-## Usage (recommended scripts)
-
-Start a new persistent session (creates a human-readable title and stores the `sessionId` mapping in an index file under the working directory):
+LLM tests are gated by `OPENCODE_PSA_MODEL`:
 
 ```bash
-./.opencode/skills/opencode-subagent/scripts/run_subagent.sh \
+OPENCODE_PSA_MODEL=opencode/gpt-5-nano bun test tests/llm
+```
+
+## Developer context
+
+- Solution layout: v2 skill lives under `.claude/skills/opencode-subagent/` with scripts in `scripts/`.
+- Registry: runs are tracked in `<cwd>/.opencode-subagent/runs.jsonl` (JSONL, latest per name wins).
+- Tests: non‑LLM uses a deterministic mock `opencode` shim; LLM suite is gated by `OPENCODE_PSA_MODEL`.
+
+## Usage (recommended scripts)
+
+Start a new persistent session (async-only, registry-backed):
+
+```bash
+./.claude/skills/opencode-subagent/scripts/run_subagent.sh \
 	--name "hello" \
 	--prompt "Hello world" \
 	--model opencode/gpt-5-nano
@@ -59,7 +73,7 @@ Start a new persistent session (creates a human-readable title and stores the `s
 Resume the same session later:
 
 ```bash
-./.opencode/skills/opencode-subagent/scripts/run_subagent.sh \
+./.claude/skills/opencode-subagent/scripts/run_subagent.sh \
 	--name "hello" \
 	--resume \
 	--prompt "Continue with follow-ups"
@@ -68,65 +82,16 @@ Resume the same session later:
 Fetch just the last assistant result (no huge JSON dump):
 
 ```bash
-./.opencode/skills/opencode-subagent/scripts/extract_last.sh --name "hello"
+./.claude/skills/opencode-subagent/scripts/result.sh --name "hello"
 ```
 
 Search the subagent history (grep-like):
 
 ```bash
-./.opencode/skills/opencode-subagent/scripts/search_history.sh \
+./.claude/skills/opencode-subagent/scripts/search.sh \
 	--name "hello" \
 	--pattern "closures|async"
 ```
-
-## Legacy usage (PID-based runner)
-
-```bash
-chmod +x opencode-subagent.sh
-
-./opencode-subagent.sh "Hello world" opencode/gpt-5-nano
-```
-
-You can also set a custom working directory:
-
-```bash
-./opencode-subagent.sh "Summarize README" opencode/gpt-5-nano /path/to/project
-```
-
----
-
-## Legacy status contract
-
-This skill reports status based **only** on process lifecycle:
-
-- **RUNNING** while the PID is alive
-- **ENDED** after the subprocess exits
-
-No other status is reliable without server API access. This legacy script does not return a `sessionId` and cannot resume sessions.
-
----
-
-## Legacy output contract
-
-The script writes status signals to stdout:
-
-```
-SUBAGENT_PID=<pid>
-SUBAGENT_STATUS=RUNNING
-...
-SUBAGENT_STATUS=ENDED
-SUBAGENT_EXIT_CODE=<code>
-```
-
----
-
-## Why PID-based status
-
-OpenCode CLI does not expose a simple “job status” API, so PID tracking is a deterministic lifecycle signal.
-
-For **persistence/resume**, use the skill scripts, which address sessions using `sessionId` and retrieve results via `opencode export`.
-
----
 
 ## Notes
 

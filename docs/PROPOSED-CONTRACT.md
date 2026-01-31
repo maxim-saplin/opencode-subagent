@@ -331,12 +331,3 @@ Common errors:
 | `OPENCODE_PSA_DIR`    | Override registry directory (default `.opencode-subagent`). |
 
 ---
-
-## Migration from Current Implementation
-
-1. Remove sync mode from `run_subagent.sh`.
-2. Replace TSV index/log with JSONL registry (`runs.jsonl`).
-3. Add wrapper script for reliable completion tracking.
-4. Add `status.sh`, `cancel.sh` scripts.
-5. Rename `extract_last.sh` → `result.sh` for clarity.
-6. Rename `search_history.sh` → `search.sh` for brevity.

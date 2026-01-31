@@ -1,0 +1,6 @@
+.DS_Store
+.tmp/
+.opencode-subagent/
+**/.opencode-subagent/
+**/.mock-opencode/
+node_modules/
