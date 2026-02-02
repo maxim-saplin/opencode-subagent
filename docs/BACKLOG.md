@@ -139,9 +139,9 @@ Conventions:
   - Ensure all docs clearly label whether they apply to v2 vs v3.
   - Ensure all references to registry paths are correct (`runs.jsonl` vs `registry.json`).
   - Ensure examples match the chosen flags and semantics (`--wait-terminal`, `--timeout`, cancel strictness).
-  - Ensure the v3 draft in `docs/SKILL-V3.md` matches the intended replacement behavior for `.claude/skills/opencode-subagent/SKILL.md`.
+  - Ensure the v3 draft in `docs/SKILL-V3-READY.md` matches the intended replacement behavior for `.claude/skills/opencode-subagent/SKILL.md`.
 - Acceptance:
-  - “Single source of truth” is explicit (either `.claude/skills/opencode-subagent/SKILL.md` or `docs/SKILL-V3.md` during the transition).
+  - “Single source of truth” is explicit (either `.claude/skills/opencode-subagent/SKILL.md` or `docs/SKILL-V3-READY.md` during the transition).
   - No doc instructs a command/path combination that can’t work in the targeted version.
 
 ### B-012) Post-fix manual validation (O04/O07)

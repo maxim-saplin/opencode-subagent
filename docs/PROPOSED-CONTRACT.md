@@ -1,7 +1,7 @@
 # Proposed Contract: Async-Only Subagent Orchestration (v2)
 
-Note: This document describes the current v2 shell/JXA implementation (JSONL registry).
-Planned v3 (Node-based single CLI + atomic mutable registry) is drafted in docs/SKILL-V3.md.
+Note: This document describes the legacy v2 shell/JXA implementation (JSONL registry).
+The v3 contract (Node-based single CLI + atomic mutable registry) is documented in docs/SKILL-V3-READY.md.
 
 This document specifies the revised script interface for managing persistent OpenCode subagent sessions with reliable status tracking.
 

@@ -1,6 +1,6 @@
 # Manual Orchestrator QA Scenarios
 
-Note: This document currently targets the v2 implementation (JSONL registry). Planned v3 changes (Node-based CLI and `registry.json`) are drafted in docs/SKILL-V3.md.
+Note: This document currently targets the v2 implementation (JSONL registry). Planned v3 changes (Node-based CLI and `registry.json`) are drafted in docs/SKILL-V3-READY.md.
 
 These scenarios are executed by an orchestrator (the QA model) to validate end-to-end behavior. They focus on **real, self-contained tasks** inside this repo and verify that spawned agents perform work and return results.
 

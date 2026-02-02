@@ -4,7 +4,6 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { describe, it, expect, afterAll } from "bun:test";
 import { mockEnv, scriptPath } from "./helpers/mock-opencode";
-import { waitForStatusDone } from "./helpers/wait";
 import { cleanupTempDirs } from "./helpers/cleanup";
 
 const exec = promisify(execFile);
@@ -15,7 +14,7 @@ afterAll(cleanupTempDirs);
 const RUN = scriptPath("run_subagent.sh");
 const RESULT = scriptPath("result.sh");
 
-describe("result.sh v2 behavior", () => {
+describe("result.sh behavior", () => {
   it("errors for unknown name", async () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "result-unknown");
     await fs.mkdir(cwd, { recursive: true });
@@ -30,7 +29,7 @@ describe("result.sh v2 behavior", () => {
     expect(json.ok).toBe(false);
   });
 
-  it("returns last assistant text", async () => {
+  it("returns last assistant text with --wait", async () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "result-ok");
     await fs.mkdir(cwd, { recursive: true });
 
@@ -43,9 +42,16 @@ describe("result.sh v2 behavior", () => {
       cwd,
     ], { cwd: ROOT, env: mockEnv(cwd) });
 
-    await waitForStatusDone(cwd, "result-agent");
-
-    const { stdout } = await exec(RESULT, ["--name", "result-agent", "--cwd", cwd, "--json"], {
+    const { stdout } = await exec(RESULT, [
+      "--name",
+      "result-agent",
+      "--wait",
+      "--timeout",
+      "10",
+      "--cwd",
+      cwd,
+      "--json",
+    ], {
       cwd: ROOT,
       env: mockEnv(cwd),
     });
@@ -53,5 +59,40 @@ describe("result.sh v2 behavior", () => {
     const json = JSON.parse(String(stdout ?? "").trim());
     expect(json.ok).toBe(true);
     expect(json.lastAssistantText).toBe("RESULT_OK");
+  });
+
+  it("fails fast when sessionId is missing", async () => {
+    const cwd = path.join(ROOT, ".tmp", "tests", "result-missing-session");
+    await fs.mkdir(path.join(cwd, ".opencode-subagent"), { recursive: true });
+
+    const registryPath = path.join(cwd, ".opencode-subagent", "registry.json");
+    const record = {
+      version: 3,
+      agents: {
+        "missing-session": {
+          name: "missing-session",
+          pid: null,
+          sessionId: null,
+          status: "done",
+          exitCode: 0,
+          startedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          finishedAt: new Date().toISOString(),
+          model: "opencode/gpt-5-nano",
+          prompt: "test",
+          cwd,
+        },
+      },
+    };
+    await fs.writeFile(registryPath, JSON.stringify(record), "utf8");
+
+    const res = await exec(RESULT, ["--name", "missing-session", "--cwd", cwd, "--json"], {
+      cwd: ROOT,
+      env: mockEnv(cwd),
+    }).catch((err: unknown) => err);
+
+    const stdout = (res as { stdout?: string }).stdout ?? "";
+    const json = JSON.parse(String(stdout ?? "").trim());
+    expect(json.ok).toBe(false);
   });
 });

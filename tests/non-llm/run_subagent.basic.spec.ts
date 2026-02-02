@@ -34,4 +34,24 @@ describe("run_subagent.sh basic CLI behavior (Bun)", () => {
     expect(json.ok).toBe(false);
     expect(json.error).toBe("--prompt is required");
   });
+
+  it("returns JSON error for invalid --cwd", async () => {
+    const cwd = path.join(ROOT, ".tmp", "tests", "missing-cwd-basic", "missing");
+
+    const res = await exec(SKILL_RUN, [
+      "--name",
+      "test-missing-cwd",
+      "--prompt",
+      "MOCK:REPLY:OK",
+      "--cwd",
+      cwd,
+    ], { cwd: ROOT, env: mockEnv(cwd) }).catch((err: unknown) => err);
+
+    const stdout = (res as { stdout?: string }).stdout ?? "";
+    const out = typeof stdout === "string" ? stdout : String(stdout ?? "");
+    const line = out.trim().split(/\r?\n/).pop() ?? "";
+    const json = JSON.parse(line);
+    expect(json.ok).toBe(false);
+    expect(json.error).toBe("Invalid --cwd");
+  });
 });

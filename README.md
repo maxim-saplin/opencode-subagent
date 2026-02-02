@@ -1,4 +1,4 @@
-# OpenCode Persistent Subagent Skill (macOS-friendly)
+# OpenCode Persistent Subagent Skill (v3)
 
 This skill lets you run named, persistent OpenCode subagents that you can resume later. You get simple commands to start, check status, fetch the latest answer, search history, and cancel runs—without losing the session thread.
 
@@ -6,6 +6,8 @@ Quick start:
 - Start: `run_subagent.sh --name <name> --prompt <text>`
 - Check: `status.sh --json`
 - Result: `result.sh --name <name>`
+ - Wait for done: `status.sh --name <name> --wait-terminal --timeout 60 --json`
+ - Wait and fetch: `result.sh --name <name> --wait --timeout 60 --json`
 
 ---
 
@@ -18,26 +20,28 @@ Quick start:
 
 ## Requirements
 
-- macOS
+- macOS or Linux
 - `opencode` CLI on PATH
-- `osascript` (built-in on macOS)
+- Node.js available as `node`
 - A valid model ID (e.g. `opencode/gpt-5-nano`)
 
 ---
 
 ## Skill installation
 
-This repo already places the skill in the project-local discovery path:
+This repo contrains the skill in Cluade Code project-local discovery path:
 
 - `.claude/skills/opencode-subagent/SKILL.md`
 
-OpenCode will discover it when running inside this git worktree (unless skills are disabled or denied by permissions).
+Copy it to the location discoverable by your agent harness.
 
-To install globally instead, copy the folder:
+### OpenCode
+
+OpenCode will discover it when copied to the folder:
 
 - `.claude/skills/opencode-subagent/`
 
-to:
+Global install, copy to:
 
 - `~/.config/opencode/skills/opencode-subagent/`
 
@@ -55,9 +59,9 @@ OPENCODE_PSA_MODEL=opencode/gpt-5-nano bun test tests/llm
 
 ## Developer context
 
-- Solution layout: v2 skill lives under `.claude/skills/opencode-subagent/` with scripts in `scripts/`.
-- Registry: runs are tracked in `<cwd>/.opencode-subagent/runs.jsonl` (JSONL, latest per name wins).
-- Tests: non‑LLM uses a deterministic mock `opencode` shim; LLM suite is gated by `OPENCODE_PSA_MODEL`.
+- Solution layout: skill lives under `.claude/skills/opencode-subagent/` with scripts in `scripts/` and Node CLI in `bin/`.
+- Registry: runs are tracked in `<cwd>/.opencode-subagent/registry.json` (mutable, latest per name).
+- Tests: non-LLM uses a deterministic mock `opencode` shim; LLM suite is gated by `OPENCODE_PSA_MODEL`.
 
 ## Usage (recommended scripts)
 
@@ -95,7 +99,7 @@ Search the subagent history (grep-like):
 
 ## Notes
 
-If `opencode run` fails quickly, verify that your model ID is valid.  
+If `opencode run` fails quickly, verify that your model ID is valid.
 Example known-good model:
 
 ```

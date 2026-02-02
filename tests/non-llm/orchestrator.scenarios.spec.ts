@@ -69,9 +69,25 @@ describe("orchestrator scenarios (deterministic)", () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "A04");
     await fs.mkdir(cwd, { recursive: true });
 
-    await exec(RUN, ["--name", "a04/long", "--prompt", "MOCK:SLEEP:5 MOCK:REPLY:LONG", "--cwd", cwd], { cwd: ROOT, env: mockEnv(cwd) });
+    await exec(RUN, ["--name", "a04/long", "--prompt", "MOCK:SLEEP:10 MOCK:REPLY:LONG", "--cwd", cwd], { cwd: ROOT, env: mockEnv(cwd) });
+    for (let i = 0; i < 50; i += 1) {
+      const status = await exec(STATUS, ["--name", "a04/long", "--json", "--cwd", cwd], { cwd: ROOT, env: mockEnv(cwd) });
+      const statusJson = JSON.parse(String(status.stdout ?? "").trim());
+      const agent = statusJson.agents?.[0];
+      if (agent && agent.status === "running") break;
+      await new Promise((r) => setTimeout(r, 100));
+    }
     await exec(CANCEL, ["--name", "a04/long", "--cwd", cwd, "--json"], { cwd: ROOT, env: mockEnv(cwd) });
-    const { stdout } = await exec(STATUS, ["--name", "a04/long", "--wait", "--timeout", "5", "--json", "--cwd", cwd], { cwd: ROOT, env: mockEnv(cwd) });
+    const { stdout } = await exec(STATUS, [
+      "--name",
+      "a04/long",
+      "--wait-terminal",
+      "--timeout",
+      "5",
+      "--json",
+      "--cwd",
+      cwd,
+    ], { cwd: ROOT, env: mockEnv(cwd) });
     const json = JSON.parse(String(stdout ?? "").trim());
     expect(json.ok).toBe(true);
   }, 20000);
@@ -92,7 +108,16 @@ describe("orchestrator scenarios (deterministic)", () => {
     ], { cwd: ROOT, env: mockEnv(cwd) });
 
     await waitDone(cwd, "a05/attach");
-    const { stdout } = await exec(RESULT, ["--name", "a05/attach", "--cwd", cwd, "--json"], { cwd: ROOT, env: mockEnv(cwd) });
+    const { stdout } = await exec(RESULT, [
+      "--name",
+      "a05/attach",
+      "--wait",
+      "--timeout",
+      "10",
+      "--cwd",
+      cwd,
+      "--json",
+    ], { cwd: ROOT, env: mockEnv(cwd) });
     expect(JSON.parse(String(stdout ?? "").trim()).lastAssistantText).toBe("PSA_ATTACHMENT_OK");
   });
 
@@ -106,7 +131,16 @@ describe("orchestrator scenarios (deterministic)", () => {
     await exec(RUN, ["--name", "a06/retry", "--prompt", "MOCK:REPLY:RECOVERED", "--cwd", cwd], { cwd: ROOT, env: mockEnv(cwd) });
     await waitDone(cwd, "a06/retry");
 
-    const { stdout } = await exec(RESULT, ["--name", "a06/retry", "--cwd", cwd, "--json"], { cwd: ROOT, env: mockEnv(cwd) });
+    const { stdout } = await exec(RESULT, [
+      "--name",
+      "a06/retry",
+      "--wait",
+      "--timeout",
+      "10",
+      "--cwd",
+      cwd,
+      "--json",
+    ], { cwd: ROOT, env: mockEnv(cwd) });
     expect(JSON.parse(String(stdout ?? "").trim()).lastAssistantText).toBe("RECOVERED");
   });
 

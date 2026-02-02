@@ -11,9 +11,15 @@ export async function waitForStatusDone(cwd: string, name?: string, timeoutSecon
   const { stdout } = await exec(STATUS, args, { env: mockEnv(cwd) });
   const json = JSON.parse(String(stdout ?? "").trim() || "{}");
   const agents = json.agents || [];
-  if (agents.some((a: any) => a.status === "done")) return;
+  const scoped = name ? agents.filter((a: any) => a.name === name) : agents;
+  if (scoped.some((a: any) => a.status === "done")) return;
 
-  const waitArgs = ["--wait", "--timeout", String(timeoutSeconds), "--json", "--cwd", cwd];
-  if (name) waitArgs.unshift("--name", name);
+  const waitArgs = ["--timeout", String(timeoutSeconds), "--json", "--cwd", cwd];
+  if (name) {
+    waitArgs.unshift("--name", name);
+    waitArgs.unshift("--wait-terminal");
+  } else {
+    waitArgs.unshift("--wait");
+  }
   await exec(STATUS, waitArgs, { env: mockEnv(cwd) });
 }

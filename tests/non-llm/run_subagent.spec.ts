@@ -15,7 +15,7 @@ afterAll(cleanupTempDirs);
 const RUN = scriptPath("run_subagent.sh");
 const RESULT = scriptPath("result.sh");
 
-describe("run_subagent.sh v2 behavior", () => {
+describe("run_subagent.sh behavior", () => {
   it("fails when --name is missing", async () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "run-missing-name");
     await fs.mkdir(cwd, { recursive: true });
@@ -52,8 +52,11 @@ describe("run_subagent.sh v2 behavior", () => {
     expect(json.ok).toBe(true);
     expect(json.status).toBe("scheduled");
 
-    const runs = await fs.readFile(path.join(cwd, ".opencode-subagent", "runs.jsonl"), "utf8");
-    expect(runs).toContain("\"status\":\"scheduled\"");
+    const registry = await fs.readFile(path.join(cwd, ".opencode-subagent", "registry.json"), "utf8");
+    const parsed = JSON.parse(registry);
+    const record = parsed.agents?.["run-scheduled-agent"];
+    expect(record).toBeTruthy();
+    expect(["scheduled", "running"]).toContain(record.status);
   });
 
   it("resumes a named session", async () => {
@@ -69,7 +72,7 @@ describe("run_subagent.sh v2 behavior", () => {
       cwd,
     ], { cwd: ROOT, env: mockEnv(cwd) });
 
-    await waitForStatusDone(cwd);
+    await waitForStatusDone(cwd, "resume-agent");
 
     const { stdout } = await exec(RUN, [
       "--name",
@@ -102,9 +105,18 @@ describe("run_subagent.sh v2 behavior", () => {
       cwd,
     ], { cwd: ROOT, env: mockEnv(cwd) });
 
-    await waitForStatusDone(cwd);
+    await waitForStatusDone(cwd, "attach-agent");
 
-    const { stdout } = await exec(RESULT, ["--name", "attach-agent", "--cwd", cwd, "--json"], {
+    const { stdout } = await exec(RESULT, [
+      "--name",
+      "attach-agent",
+      "--wait",
+      "--timeout",
+      "10",
+      "--cwd",
+      cwd,
+      "--json",
+    ], {
       cwd: ROOT,
       env: mockEnv(cwd),
     });

@@ -1,6 +1,6 @@
 # Test Automation Plan (LLM vs Non-LLM)
 
-Note: The current test suite targets the v2 `.sh` scripts. Under v3, the `.sh` scripts remain as wrappers while the implementation moves to a single Node CLI. This document will be updated as the v3 implementation lands; see docs/SKILL-V3.md for the draft contract.
+Note: The current test suite targets the v2 `.sh` scripts. Under v3, the `.sh` scripts remain as wrappers while the implementation moves to a single Node CLI. This document will be updated as the v3 implementation lands; see docs/SKILL-V3-READY.md for the draft contract.
 
 This document defines the automation test split and coverage. The plan is **LLM-dependent** vs **non-LLM** for practicality and repeatability.
 

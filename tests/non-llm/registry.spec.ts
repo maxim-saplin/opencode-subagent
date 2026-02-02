@@ -43,7 +43,7 @@ describe("registry mechanics", () => {
     expect(json.agents[0].name).toBe("dedupe-agent");
   });
 
-  it("runs.jsonl is append-only with newline separation", async () => {
+  it("registry.json stores latest by name", async () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "registry-lines");
     await fs.mkdir(cwd, { recursive: true });
 
@@ -56,12 +56,9 @@ describe("registry mechanics", () => {
       cwd,
     ], { cwd: ROOT, env: mockEnv(cwd) });
 
-    const runs = await fs.readFile(path.join(cwd, ".opencode-subagent", "runs.jsonl"), "utf8");
-    const lines = runs.trim().split(/\r?\n/);
-    expect(lines.length).toBeGreaterThan(0);
-    for (const line of lines) {
-      expect(line.startsWith("{"))
-        .toBe(true);
-    }
+    const registry = await fs.readFile(path.join(cwd, ".opencode-subagent", "registry.json"), "utf8");
+    const parsed = JSON.parse(registry);
+    expect(parsed.agents).toBeTruthy();
+    expect(parsed.agents["lines-agent"]).toBeTruthy();
   });
 });

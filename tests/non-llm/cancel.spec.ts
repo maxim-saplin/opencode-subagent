@@ -13,8 +13,9 @@ afterAll(cleanupTempDirs);
 
 const RUN = scriptPath("run_subagent.sh");
 const CANCEL = scriptPath("cancel.sh");
+const STATUS = scriptPath("status.sh");
 
-describe("cancel.sh v2 behavior", () => {
+describe("cancel.sh behavior", () => {
   it("cancels a running agent", { timeout: 15000 }, async () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "cancel-run");
     await fs.mkdir(cwd, { recursive: true });
@@ -23,14 +24,49 @@ describe("cancel.sh v2 behavior", () => {
       "--name",
       "cancel-agent",
       "--prompt",
-      "MOCK:SLEEP:2 MOCK:REPLY:NEVER",
+      "MOCK:SLEEP:5 MOCK:REPLY:NEVER",
       "--cwd",
       cwd,
     ], { cwd: ROOT, env: mockEnv(cwd) });
 
+    for (let i = 0; i < 50; i += 1) {
+      const { stdout } = await exec(STATUS, ["--name", "cancel-agent", "--json", "--cwd", cwd], { cwd: ROOT, env: mockEnv(cwd) });
+      const statusJson = JSON.parse(String(stdout ?? "").trim());
+      const agent = statusJson.agents?.[0];
+      if (agent && agent.status === "running") break;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+
     const { stdout } = await exec(CANCEL, ["--name", "cancel-agent", "--cwd", cwd, "--json"], { cwd: ROOT, env: mockEnv(cwd) });
     const json = JSON.parse(String(stdout ?? "").trim());
     expect(json.ok).toBe(true);
+  });
+
+  it("errors when agent is done", async () => {
+    const cwd = path.join(ROOT, ".tmp", "tests", "cancel-done");
+    await fs.mkdir(cwd, { recursive: true });
+
+    await exec(RUN, [
+      "--name",
+      "cancel-done-agent",
+      "--prompt",
+      "MOCK:REPLY:DONE",
+      "--cwd",
+      cwd,
+    ], { cwd: ROOT, env: mockEnv(cwd) });
+
+    for (let i = 0; i < 20; i += 1) {
+      const { stdout } = await exec(STATUS, ["--name", "cancel-done-agent", "--json", "--cwd", cwd], { cwd: ROOT, env: mockEnv(cwd) });
+      const statusJson = JSON.parse(String(stdout ?? "").trim());
+      const agent = statusJson.agents?.[0];
+      if (agent && agent.status === "done") break;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+
+    const res = await exec(CANCEL, ["--name", "cancel-done-agent", "--cwd", cwd, "--json"], { cwd: ROOT, env: mockEnv(cwd) }).catch((err: unknown) => err);
+    const stdout = (res as { stdout?: string }).stdout ?? "";
+    const json = JSON.parse(String(stdout ?? "").trim());
+    expect(json.ok).toBe(false);
   });
 
   it("errors when agent missing", async () => {

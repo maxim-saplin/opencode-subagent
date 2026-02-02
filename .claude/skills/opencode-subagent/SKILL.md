@@ -1,222 +1,169 @@
 ---
 name: opencode-subagent
-description: Async-only persistent OpenCode sessions with reliable status tracking via JSONL registry.
-compatibility: macOS-focused. Requires opencode CLI and osascript (built-in on macOS).
+description: Async resumable OpenCode agent sessions via CLI
+compatibility: POSIX (macOS/Linux)
 metadata:
   workflow: orchestration
   kind: subagent
+  version: 3
 ---
 
 Run OpenCode sessions. All runs are async (background). A JSONL registry tracks lifecycle state reliably: `scheduled → running → done`. The orchestrator can introspect and resume 'done' sessions providing new instructions. Prefer for long runnings cmoplex sessnsion OVER default subagents tools, such as 'Task', which are by desgin one-off agent sessions with singular outputs and no way to resume.
 
-## Naming (core semantics)
+## Status model
 
-- `--name` is the stable address of a subagent session. Pick names that encode purpose and scope.
-- Suggested grammar: `<area>/<task>/<step>` (examples: `auth/refresh-token/fix`, `payments/refactor/plan`).
-- Reusing a name means continuing the same session history (keep `--cwd` stable across runs).
+| Status | Meaning |
+|---|---|
+| scheduled | A run record exists; worker not yet confirmed alive. |
+| running | Worker PID is alive. |
+| done | Worker exited; exitCode recorded. |
+| unknown | PID is dead without clean completion record (crash/kill -9). |
 
-## Agent Session Status
+## Entry points
 
-| Status      | Meaning                                                         |
-|-------------|-----------------------------------------------------------------|
-| `scheduled` | Run record created, process not yet confirmed alive.            |
-| `running`   | Process confirmed alive (`kill -0 $pid` succeeds).              |
-| `done`      | Process exited; completion record written with `exitCode`.      |
-| `unknown`   | PID dead but no completion record (crash, `kill -9`, etc.).     |
+- .claude/skills/opencode-subagent/scripts/run_subagent.sh
+- .claude/skills/opencode-subagent/scripts/status.sh
+- .claude/skills/opencode-subagent/scripts/result.sh
+- .claude/skills/opencode-subagent/scripts/search.sh
+- .claude/skills/opencode-subagent/scripts/cancel.sh
 
 ## Commands
 
 ### run_subagent.sh
 
-Start a named subagent session (always async, returns immediately).
+Start a named subagent session (always async).
 
-**Usage:**
-```
+Usage:
+
+```sh
 run_subagent.sh --name <name> --prompt <text> [--resume] [--cwd <dir>] \
-                [--agent <agent>] [--model <provider/model>] [--file <path> ...]
+  [--agent <agent>] [--model <provider/model>] [--file <path> ...]
 ```
 
-**Output (stdout):** single JSON line.
+Output: single JSON line.
 
 Success:
+
 ```json
-{"ok":true,"name":"payments/refactor/plan","pid":12345,"status":"scheduled","sessionId":null,"model":"opencode/gpt-5-nano","mode":"new","startedAt":"2026-01-29T10:00:00Z"}
+{"ok":true,"name":"pipeline/plan","pid":12345,"status":"scheduled","sessionId":null,"model":"opencode/gpt-5-nano","mode":"new","startedAt":"2026-02-02T12:00:00Z"}
 ```
 
 Failure:
+
 ```json
-{"ok":false,"error":"--prompt is required","details":{"hint":"Provide a non-empty prompt."}}
+{"ok":false,"code":"E_PROMPT_REQUIRED","error":"--prompt is required","details":{"hint":"Provide a non-empty prompt."}}
 ```
 
-**Flags:**
-- `--name <name>`: stable address for this subagent session (required).
-- `--prompt <text>`: message sent to the session (required).
-- `--resume`: continue the existing session addressed by `--name`.
-- `--cwd <dir>`: working directory for `opencode` and registry state (default: `$PWD`).
-- `--agent <agent>`: OpenCode agent preset (e.g., `plan`, `build`).
-- `--model <provider/model>`: model id (e.g., `opencode/gpt-5-nano`). Falls back to `OPENCODE_PSA_MODEL` env.
-- `--file <path>`: attach local file(s) to the message (repeatable).
+Flags:
 
-**Examples:**
-```bash
-./.claude/skills/opencode-subagent/scripts/run_subagent.sh \
-  --name "payments/refactor/plan" \
-  --prompt "Draft the refactor plan" \
-  --model opencode/gpt-5-nano \
-  --cwd ".tmp/opencode-psa"
-
-# Resume and continue
-./.claude/skills/opencode-subagent/scripts/run_subagent.sh \
-  --name "payments/refactor/plan" \
-  --resume \
-  --prompt "Continue: risks + rollout" \
-  --cwd ".tmp/opencode-psa"
-```
-
----
+- --name <name>: stable address for the subagent session (required).
+- --prompt <text>: message sent to the session (required).
+- --resume: continue the existing session addressed by --name.
+- --cwd <dir>: working directory for opencode and registry state (default: $PWD).
+- --agent <agent>: OpenCode agent preset (e.g., plan, build).
+- --model <provider/model>: model id (falls back to OPENCODE_PSA_MODEL).
+- --file <path>: attach local file(s) to the message (repeatable).
 
 ### status.sh
 
-Query subagent status (sync list or async wait-for-change).
+Query status (sync) or wait.
 
-**Usage:**
-```
-status.sh [--name <name>] [--cwd <dir>] [--wait] [--timeout <seconds>] [--json]
-```
+Usage:
 
-**Output (sync, `--json`):**
-```json
-{
-  "ok": true,
-  "agents": [
-    {"name":"auth/fix","pid":123,"status":"running","sessionId":"ses_abc","exitCode":null,"startedAt":"...","updatedAt":"...","finishedAt":null},
-    {"name":"payments/plan","pid":124,"status":"done","sessionId":"ses_def","exitCode":0,"startedAt":"...","updatedAt":"...","finishedAt":"..."}
-  ]
-}
+```sh
+status.sh [--name <name>] [--cwd <dir>] [--json] [--wait] [--timeout <seconds>] [--wait-terminal]
 ```
 
-**Output (wait mode, `--wait --json`):**
+Semantics:
 
-Blocks until any agent status changes:
-```json
-{
-  "ok": true,
-  "changed": [
-    {"name":"auth/fix","previousStatus":"running","status":"done","exitCode":0,"sessionId":"ses_abc","finishedAt":"..."}
-  ],
-  "agents": [ /* full list */ ]
-}
-```
+- --wait: returns when any agent status changes (legacy behavior).
+- --wait-terminal: waits until the target --name reaches done or unknown.
 
-**Flags:**
-- `--name <name>`: filter to a specific subagent (omit for all).
-- `--cwd <dir>`: working directory (default: `$PWD`).
-- `--wait`: block until any status changes (long-poll mode).
-- `--timeout <sec>`: max seconds to wait in `--wait` mode (default: 300, 0 = forever).
-- `--json`: output as JSON (default for programmatic use).
+Flags:
 
-**Examples:**
-```bash
-# List all agents (sync)
-./.claude/skills/opencode-subagent/scripts/status.sh --cwd ".tmp/opencode-psa" --json
-
-# Wait for any completion
-./.claude/skills/opencode-subagent/scripts/status.sh --wait --timeout 60 --json --cwd ".tmp/opencode-psa"
-
-# Check specific agent
-./.claude/skills/opencode-subagent/scripts/status.sh --name "payments/refactor/plan" --json
-```
-
----
+- --name <name>: filter to a specific subagent (omit for all).
+- --cwd <dir>: working directory (default: $PWD).
+- --wait: block until any status changes.
+- --timeout <seconds>: max seconds to wait (default: 300, 0 = forever).
+- --wait-terminal: wait until target reaches done or unknown (requires --name).
+- --json: output as JSON.
 
 ### result.sh
 
-Fetch the last assistant response from a session.
+Fetch the last assistant response.
 
-**Usage:**
-```
-result.sh --name <name> [--cwd <dir>] [--json]
-```
+Usage:
 
-**Output (plain text, default):**
-```
-The refactor plan has three phases...
+```sh
+result.sh --name <name> [--cwd <dir>] [--json] [--wait] [--timeout <seconds>]
 ```
 
-**Output (`--json`):**
-```json
-{"ok":true,"name":"payments/refactor/plan","sessionId":"ses_abc123","status":"done","lastAssistantText":"The refactor plan has three phases..."}
-```
+Hard guarantees:
 
-**Flags:**
-- `--name <name>`: name of the subagent session (required).
-- `--cwd <dir>`: working directory (default: `$PWD`).
-- `--json`: output as JSON with metadata.
+- Never hangs indefinitely.
+- If sessionId is missing and output cannot be retrieved safely, returns ok:false with a stable error code.
 
----
+Flags:
+
+- --name <name>: name of the subagent session (required).
+- --cwd <dir>: working directory (default: $PWD).
+- --wait: wait until terminal then fetch.
+- --timeout <seconds>: max seconds to wait (default: 300, 0 = forever).
+- --json: output as JSON with metadata.
 
 ### search.sh
 
 Search session history by regex.
 
-**Usage:**
-```
+Usage:
+
+```sh
 search.sh --name <name> --pattern <regex> [--role any|user|assistant] [--cwd <dir>] [--json]
 ```
 
-**Output (`--json`):**
-```json
-{"ok":true,"name":"payments/refactor/plan","sessionId":"ses_abc123","matches":[{"index":2,"role":"assistant","snippet":"...closures are used here..."}]}
-```
+Flags:
 
-**Flags:**
-- `--name <name>`: name of the subagent session (required).
-- `--pattern <regex>`: search pattern (required).
-- `--role <role>`: filter by role: `any` (default), `user`, `assistant`.
-- `--cwd <dir>`: working directory (default: `$PWD`).
-- `--json`: output as JSON.
-
----
+- --name <name>: name of the subagent session (required).
+- --pattern <regex>: search pattern (required).
+- --role <role>: filter by role: any (default), user, assistant.
+- --cwd <dir>: working directory (default: $PWD).
+- --json: output as JSON.
 
 ### cancel.sh
 
-Terminate a running subagent.
+Cancel a running subagent.
 
-**Usage:**
-```
-cancel.sh --name <name> [--cwd <dir>] [--signal <sig>] [--json]
-```
+Usage:
 
-**Output:**
-```json
-{"ok":true,"name":"auth/fix","pid":12345,"signalSent":"TERM","previousStatus":"running"}
+```sh
+cancel.sh --name <name> [--cwd <dir>] [--signal TERM|KILL] [--json]
 ```
 
-**Flags:**
-- `--name <name>`: name of the subagent to cancel (required).
-- `--cwd <dir>`: working directory (default: `$PWD`).
-- `--signal <sig>`: signal to send: `TERM` (default), `KILL`.
-- `--json`: output as JSON.
+v3 semantics:
 
----
+- If the agent is not currently running, cancellation returns ok:false (no silent no-op).
+
+Flags:
+
+- --name <name>: name of the subagent to cancel (required).
+- --cwd <dir>: working directory (default: $PWD).
+- --signal <sig>: signal to send: TERM (default), KILL.
+- --json: output as JSON.
+
+## Error contract
+
+All commands emit exactly one JSON line.
+
+Common fields:
+
+- ok: boolean
+- code: string (stable, machine-readable)
+- error: string
+- details?: object
 
 ## Configuration
 
-| Variable              | Default                | Description                              |
-|-----------------------|------------------------|------------------------------------------|
-| `OPENCODE_PSA_DIR`    | `.opencode-subagent`   | Registry directory name.                 |
-| `OPENCODE_PSA_MODEL`  | (none)                 | Default model if `--model` omitted.      |
-
-## Registry
-
-Location: `<cwd>/$OPENCODE_PSA_DIR/runs.jsonl`
-
-Append-only JSONL. Each line is a run record; latest entry per `name` wins.
-
-```jsonc
-{"name":"auth/fix","pid":123,"sessionId":"ses_abc","status":"done","exitCode":0,"startedAt":"...","updatedAt":"...","finishedAt":"...","model":"opencode/gpt-5-nano","prompt":"Fix the auth bug","cwd":"/path"}
-```
-
-## Platform
-
-macOS only (uses `osascript` for JSON parsing/quoting).
+| Variable | Default | Description |
+|---|---|---|
+| OPENCODE_PSA_DIR | .opencode-subagent | Registry directory name. |
+| OPENCODE_PSA_MODEL | (none) | Default model if --model is omitted. |

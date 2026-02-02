@@ -15,7 +15,7 @@ afterAll(cleanupTempDirs);
 const RUN = scriptPath("run_subagent.sh");
 const SEARCH = scriptPath("search.sh");
 
-describe("search.sh v2 behavior", () => {
+describe("search.sh behavior", () => {
   it("finds assistant matches", async () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "search-ok");
     await fs.mkdir(cwd, { recursive: true });
