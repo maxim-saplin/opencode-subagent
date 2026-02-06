@@ -26,7 +26,7 @@ describe("status.sh basic list after scheduled", () => {
       "MOCK:REPLY:STATUS_OK",
       "--cwd",
       cwd,
-    ], { cwd: ROOT, env: mockEnv(cwd) });
+    ], { cwd, env: mockEnv(cwd) });
 
     const lines = run.stdout.trim().split(/\r?\n/);
     const jsonLine = lines.find((l) => l.trim().startsWith("{")) ?? lines[0] ?? "";
@@ -34,7 +34,7 @@ describe("status.sh basic list after scheduled", () => {
     expect(json.ok).toBe(true);
     expect(json.name).toBe("status-basic-agent");
 
-    const { stdout } = await exec(STATUS, ["--json", "--cwd", cwd], { cwd: ROOT, env: mockEnv(cwd) });
+    const { stdout } = await exec(STATUS, ["--json", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
     const compact = stdout.replace(/\r?\n/g, "");
     const statusJson = JSON.parse(compact);
     const names = (statusJson.agents || []).map((a: any) => a.name);

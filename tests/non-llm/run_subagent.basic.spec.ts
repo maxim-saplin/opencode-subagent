@@ -25,7 +25,7 @@ describe("run_subagent.sh basic CLI behavior (Bun)", () => {
       "",
       "--cwd",
       cwd,
-    ], { cwd: ROOT, env: mockEnv(cwd) }).catch((err: unknown) => err);
+    ], { cwd, env: mockEnv(cwd) }).catch((err: unknown) => err);
 
     const stdout = (res as { stdout?: string }).stdout ?? "";
     const out = typeof stdout === "string" ? stdout : String(stdout ?? "");

@@ -59,10 +59,12 @@ Flags:
 - --name <name>: stable address for the subagent session (required).
 - --prompt <text>: message sent to the session (required).
 - --resume: continue the existing session addressed by --name.
-- --cwd <dir>: working directory for opencode and registry state (default: $PWD).
+- --cwd <dir>: working directory for opencode runs (default: $PWD). Registry is stored under the orchestrator working directory.
 - --agent <agent>: OpenCode agent preset (e.g., plan, build).
 - --model <provider/model>: model id (falls back to OPENCODE_PSA_MODEL).
 - --file <path>: attach local file(s) to the message (repeatable).
+
+If the name already exists and --resume is not set, the command returns `E_NAME_EXISTS`.
 
 ### status.sh
 
@@ -71,7 +73,7 @@ Query status (sync) or wait.
 Usage:
 
 ```sh
-status.sh [--name <name>] [--cwd <dir>] [--json] [--wait] [--timeout <seconds>] [--wait-terminal]
+status.sh [--name <name>] [--json] [--wait] [--timeout <seconds>] [--wait-terminal]
 ```
 
 Semantics:
@@ -82,7 +84,6 @@ Semantics:
 Flags:
 
 - --name <name>: filter to a specific subagent (omit for all).
-- --cwd <dir>: working directory (default: $PWD).
 - --wait: block until any status changes.
 - --timeout <seconds>: max seconds to wait (default: 300, 0 = forever).
 - --wait-terminal: wait until target reaches done or unknown (requires --name).
@@ -95,7 +96,7 @@ Fetch the last assistant response.
 Usage:
 
 ```sh
-result.sh --name <name> [--cwd <dir>] [--json] [--wait] [--timeout <seconds>]
+result.sh --name <name> [--json] [--wait] [--timeout <seconds>]
 ```
 
 Hard guarantees:
@@ -106,7 +107,6 @@ Hard guarantees:
 Flags:
 
 - --name <name>: name of the subagent session (required).
-- --cwd <dir>: working directory (default: $PWD).
 - --wait: wait until terminal then fetch.
 - --timeout <seconds>: max seconds to wait (default: 300, 0 = forever).
 - --json: output as JSON with metadata.
@@ -118,7 +118,7 @@ Search session history by regex.
 Usage:
 
 ```sh
-search.sh --name <name> --pattern <regex> [--role any|user|assistant] [--cwd <dir>] [--json]
+search.sh --name <name> --pattern <regex> [--role any|user|assistant] [--json]
 ```
 
 Flags:
@@ -126,7 +126,6 @@ Flags:
 - --name <name>: name of the subagent session (required).
 - --pattern <regex>: search pattern (required).
 - --role <role>: filter by role: any (default), user, assistant.
-- --cwd <dir>: working directory (default: $PWD).
 - --json: output as JSON.
 
 ### cancel.sh
@@ -136,7 +135,7 @@ Cancel a running subagent.
 Usage:
 
 ```sh
-cancel.sh --name <name> [--cwd <dir>] [--signal TERM|KILL] [--json]
+cancel.sh --name <name> [--signal TERM|KILL] [--json]
 ```
 
 v3 semantics:
@@ -146,7 +145,6 @@ v3 semantics:
 Flags:
 
 - --name <name>: name of the subagent to cancel (required).
-- --cwd <dir>: working directory (default: $PWD).
 - --signal <sig>: signal to send: TERM (default), KILL.
 - --json: output as JSON.
 

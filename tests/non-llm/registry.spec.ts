@@ -12,10 +12,9 @@ const ROOT = path.resolve(__dirname, "../..");
 afterAll(cleanupTempDirs);
 
 const RUN = scriptPath("run_subagent.sh");
-const STATUS = scriptPath("status.sh");
 
 describe("registry mechanics", () => {
-  it("dedupes by name in status output", async () => {
+  it("rejects duplicate names", async () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "registry-dedupe");
     await fs.mkdir(cwd, { recursive: true });
 
@@ -26,21 +25,22 @@ describe("registry mechanics", () => {
       "MOCK:REPLY:ONE",
       "--cwd",
       cwd,
-    ], { cwd: ROOT, env: mockEnv(cwd) });
+    ], { cwd, env: mockEnv(cwd) });
 
-    await exec(RUN, [
+    const res = await exec(RUN, [
       "--name",
       "dedupe-agent",
       "--prompt",
       "MOCK:REPLY:TWO",
       "--cwd",
       cwd,
-    ], { cwd: ROOT, env: mockEnv(cwd) });
+    ], { cwd, env: mockEnv(cwd) }).catch((err: unknown) => err);
 
-    const { stdout } = await exec(STATUS, ["--name", "dedupe-agent", "--json", "--cwd", cwd], { cwd: ROOT, env: mockEnv(cwd) });
-    const json = JSON.parse(String(stdout ?? "").trim());
-    expect(json.agents.length).toBe(1);
-    expect(json.agents[0].name).toBe("dedupe-agent");
+    const stdout = (res as { stdout?: string }).stdout ?? "";
+    const line = String(stdout ?? "").trim().split(/\r?\n/).pop() ?? "";
+    const json = JSON.parse(line);
+    expect(json.ok).toBe(false);
+    expect(json.code).toBe("E_NAME_EXISTS");
   });
 
   it("registry.json stores latest by name", async () => {
@@ -54,7 +54,7 @@ describe("registry mechanics", () => {
       "MOCK:REPLY:LINES",
       "--cwd",
       cwd,
-    ], { cwd: ROOT, env: mockEnv(cwd) });
+    ], { cwd, env: mockEnv(cwd) });
 
     const registry = await fs.readFile(path.join(cwd, ".opencode-subagent", "registry.json"), "utf8");
     const parsed = JSON.parse(registry);
@@ -76,7 +76,7 @@ describe("registry mechanics", () => {
           "MOCK:REPLY:OK",
           "--cwd",
           cwd,
-        ], { cwd: ROOT, env: mockEnv(cwd) }),
+        ], { cwd, env: mockEnv(cwd) }),
       ),
     );
 

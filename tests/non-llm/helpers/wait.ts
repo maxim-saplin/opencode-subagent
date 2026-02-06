@@ -8,7 +8,7 @@ const STATUS = scriptPath("status.sh");
 export async function waitForStatusDone(cwd: string, name?: string, timeoutSeconds = 20) {
   const args = ["--json", "--cwd", cwd];
   if (name) args.unshift("--name", name);
-  const { stdout } = await exec(STATUS, args, { env: mockEnv(cwd) });
+  const { stdout } = await exec(STATUS, args, { env: mockEnv(cwd), cwd });
   const json = JSON.parse(String(stdout ?? "").trim() || "{}");
   const agents = json.agents || [];
   const scoped = name ? agents.filter((a: any) => a.name === name) : agents;
@@ -21,5 +21,5 @@ export async function waitForStatusDone(cwd: string, name?: string, timeoutSecon
   } else {
     waitArgs.unshift("--wait");
   }
-  await exec(STATUS, waitArgs, { env: mockEnv(cwd) });
+  await exec(STATUS, waitArgs, { env: mockEnv(cwd), cwd });
 }

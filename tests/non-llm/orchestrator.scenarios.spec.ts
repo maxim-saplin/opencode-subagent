@@ -27,10 +27,10 @@ describe("orchestrator scenarios (deterministic)", () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "A01");
     await fs.mkdir(cwd, { recursive: true });
 
-    await exec(RUN, ["--name", "a01/one", "--prompt", "MOCK:SLEEP:2 MOCK:REPLY:A01_OK", "--cwd", cwd], { cwd: ROOT, env: mockEnv(cwd) });
+    await exec(RUN, ["--name", "a01/one", "--prompt", "MOCK:SLEEP:2 MOCK:REPLY:A01_OK", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
     await waitDone(cwd, "a01/one");
 
-    const { stdout } = await exec(RESULT, ["--name", "a01/one", "--cwd", cwd, "--json"], { cwd: ROOT, env: mockEnv(cwd) });
+    const { stdout } = await exec(RESULT, ["--name", "a01/one", "--cwd", cwd, "--json"], { cwd, env: mockEnv(cwd) });
     const json = JSON.parse(String(stdout ?? "").trim());
     expect(json.lastAssistantText).toBe("A01_OK");
   });
@@ -39,14 +39,14 @@ describe("orchestrator scenarios (deterministic)", () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "A02");
     await fs.mkdir(cwd, { recursive: true });
 
-    await exec(RUN, ["--name", "a02/fast", "--prompt", "MOCK:SLEEP:2 MOCK:REPLY:FAST", "--cwd", cwd], { cwd: ROOT, env: mockEnv(cwd) });
-    await exec(RUN, ["--name", "a02/slow", "--prompt", "MOCK:SLEEP:3 MOCK:REPLY:SLOW", "--cwd", cwd], { cwd: ROOT, env: mockEnv(cwd) });
+    await exec(RUN, ["--name", "a02/fast", "--prompt", "MOCK:SLEEP:2 MOCK:REPLY:FAST", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
+    await exec(RUN, ["--name", "a02/slow", "--prompt", "MOCK:SLEEP:3 MOCK:REPLY:SLOW", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
 
     await waitDone(cwd, "a02/fast");
     await waitDone(cwd, "a02/slow");
 
-    const fast = await exec(RESULT, ["--name", "a02/fast", "--cwd", cwd, "--json"], { cwd: ROOT, env: mockEnv(cwd) });
-    const slow = await exec(RESULT, ["--name", "a02/slow", "--cwd", cwd, "--json"], { cwd: ROOT, env: mockEnv(cwd) });
+    const fast = await exec(RESULT, ["--name", "a02/fast", "--cwd", cwd, "--json"], { cwd, env: mockEnv(cwd) });
+    const slow = await exec(RESULT, ["--name", "a02/slow", "--cwd", cwd, "--json"], { cwd, env: mockEnv(cwd) });
     expect(JSON.parse(String(fast.stdout ?? "").trim()).lastAssistantText).toBe("FAST");
     expect(JSON.parse(String(slow.stdout ?? "").trim()).lastAssistantText).toBe("SLOW");
   }, 20000);
@@ -55,13 +55,13 @@ describe("orchestrator scenarios (deterministic)", () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "A03");
     await fs.mkdir(cwd, { recursive: true });
 
-    await exec(RUN, ["--name", "a03/handshake", "--prompt", "MOCK:REPLY:ACK1", "--cwd", cwd], { cwd: ROOT, env: mockEnv(cwd) });
+    await exec(RUN, ["--name", "a03/handshake", "--prompt", "MOCK:REPLY:ACK1", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
     await waitDone(cwd, "a03/handshake");
 
-    await exec(RUN, ["--name", "a03/handshake", "--resume", "--prompt", "MOCK:REPLY:ACK2", "--cwd", cwd], { cwd: ROOT, env: mockEnv(cwd) });
+    await exec(RUN, ["--name", "a03/handshake", "--resume", "--prompt", "MOCK:REPLY:ACK2", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
     await waitDone(cwd, "a03/handshake");
 
-    const { stdout } = await exec(RESULT, ["--name", "a03/handshake", "--cwd", cwd, "--json"], { cwd: ROOT, env: mockEnv(cwd) });
+    const { stdout } = await exec(RESULT, ["--name", "a03/handshake", "--cwd", cwd, "--json"], { cwd, env: mockEnv(cwd) });
     expect(JSON.parse(String(stdout ?? "").trim()).lastAssistantText).toBe("ACK2");
   });
 
@@ -69,15 +69,15 @@ describe("orchestrator scenarios (deterministic)", () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "A04");
     await fs.mkdir(cwd, { recursive: true });
 
-    await exec(RUN, ["--name", "a04/long", "--prompt", "MOCK:SLEEP:10 MOCK:REPLY:LONG", "--cwd", cwd], { cwd: ROOT, env: mockEnv(cwd) });
+    await exec(RUN, ["--name", "a04/long", "--prompt", "MOCK:SLEEP:10 MOCK:REPLY:LONG", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
     for (let i = 0; i < 50; i += 1) {
-      const status = await exec(STATUS, ["--name", "a04/long", "--json", "--cwd", cwd], { cwd: ROOT, env: mockEnv(cwd) });
+      const status = await exec(STATUS, ["--name", "a04/long", "--json", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
       const statusJson = JSON.parse(String(status.stdout ?? "").trim());
       const agent = statusJson.agents?.[0];
       if (agent && agent.status === "running") break;
       await new Promise((r) => setTimeout(r, 100));
     }
-    await exec(CANCEL, ["--name", "a04/long", "--cwd", cwd, "--json"], { cwd: ROOT, env: mockEnv(cwd) });
+    await exec(CANCEL, ["--name", "a04/long", "--cwd", cwd, "--json"], { cwd, env: mockEnv(cwd) });
     const { stdout } = await exec(STATUS, [
       "--name",
       "a04/long",
@@ -87,7 +87,7 @@ describe("orchestrator scenarios (deterministic)", () => {
       "--json",
       "--cwd",
       cwd,
-    ], { cwd: ROOT, env: mockEnv(cwd) });
+    ], { cwd, env: mockEnv(cwd) });
     const json = JSON.parse(String(stdout ?? "").trim());
     expect(json.ok).toBe(true);
   }, 20000);
@@ -105,7 +105,7 @@ describe("orchestrator scenarios (deterministic)", () => {
       path.join(ROOT, "tests", "fixtures", "attachment-token.txt"),
       "--cwd",
       cwd,
-    ], { cwd: ROOT, env: mockEnv(cwd) });
+    ], { cwd, env: mockEnv(cwd) });
 
     await waitDone(cwd, "a05/attach");
     const { stdout } = await exec(RESULT, [
@@ -117,7 +117,7 @@ describe("orchestrator scenarios (deterministic)", () => {
       "--cwd",
       cwd,
       "--json",
-    ], { cwd: ROOT, env: mockEnv(cwd) });
+    ], { cwd, env: mockEnv(cwd) });
     expect(JSON.parse(String(stdout ?? "").trim()).lastAssistantText).toBe("PSA_ATTACHMENT_OK");
   });
 
@@ -125,10 +125,10 @@ describe("orchestrator scenarios (deterministic)", () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "A06");
     await fs.mkdir(cwd, { recursive: true });
 
-    await exec(RUN, ["--name", "a06/retry", "--prompt", "MOCK:EXIT:1", "--cwd", cwd], { cwd: ROOT, env: mockEnv(cwd) });
+    await exec(RUN, ["--name", "a06/retry", "--prompt", "MOCK:EXIT:1", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
     await waitDone(cwd, "a06/retry");
 
-    await exec(RUN, ["--name", "a06/retry", "--prompt", "MOCK:REPLY:RECOVERED", "--cwd", cwd], { cwd: ROOT, env: mockEnv(cwd) });
+    await exec(RUN, ["--name", "a06/retry", "--resume", "--prompt", "MOCK:REPLY:RECOVERED", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
     await waitDone(cwd, "a06/retry");
 
     const { stdout } = await exec(RESULT, [
@@ -140,7 +140,7 @@ describe("orchestrator scenarios (deterministic)", () => {
       "--cwd",
       cwd,
       "--json",
-    ], { cwd: ROOT, env: mockEnv(cwd) });
+    ], { cwd, env: mockEnv(cwd) });
     expect(JSON.parse(String(stdout ?? "").trim()).lastAssistantText).toBe("RECOVERED");
   });
 
@@ -156,7 +156,7 @@ describe("orchestrator scenarios (deterministic)", () => {
     const launch = async (name: string) => {
       active += 1;
       maxActive = Math.max(maxActive, active);
-      await exec(RUN, ["--name", name, "--prompt", "MOCK:SLEEP:1 MOCK:REPLY:OK", "--cwd", cwd], { cwd: ROOT, env: mockEnv(cwd) });
+      await exec(RUN, ["--name", name, "--prompt", "MOCK:SLEEP:1 MOCK:REPLY:OK", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
       await waitDone(cwd, name);
       active -= 1;
     };
@@ -176,16 +176,16 @@ describe("orchestrator scenarios (deterministic)", () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "A08");
     await fs.mkdir(cwd, { recursive: true });
 
-    await exec(RUN, ["--name", "a08/resume", "--prompt", "MOCK:REPLY:RESUME_OK", "--cwd", cwd], { cwd: ROOT, env: mockEnv(cwd) });
+    await exec(RUN, ["--name", "a08/resume", "--prompt", "MOCK:REPLY:RESUME_OK", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
     await waitDone(cwd, "a08/resume");
 
-    const status = await exec(STATUS, ["--name", "a08/resume", "--json", "--cwd", cwd], { cwd: ROOT, env: mockEnv(cwd) });
+    const status = await exec(STATUS, ["--name", "a08/resume", "--json", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
     expect(JSON.parse(String(status.stdout ?? "").trim()).agents.length).toBe(1);
 
-    await exec(RUN, ["--name", "a08/resume", "--resume", "--prompt", "MOCK:REPLY:RESUME_CONTINUE_OK", "--cwd", cwd], { cwd: ROOT, env: mockEnv(cwd) });
+    await exec(RUN, ["--name", "a08/resume", "--resume", "--prompt", "MOCK:REPLY:RESUME_CONTINUE_OK", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
     await waitDone(cwd, "a08/resume");
 
-    const { stdout } = await exec(RESULT, ["--name", "a08/resume", "--cwd", cwd, "--json"], { cwd: ROOT, env: mockEnv(cwd) });
+    const { stdout } = await exec(RESULT, ["--name", "a08/resume", "--cwd", cwd, "--json"], { cwd, env: mockEnv(cwd) });
     expect(JSON.parse(String(stdout ?? "").trim()).lastAssistantText).toBe("RESUME_CONTINUE_OK");
   }, 20000);
 });

@@ -22,16 +22,16 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function registryDir(cwd) {
-  return path.join(cwd, process.env.OPENCODE_PSA_DIR || ".opencode-subagent");
+function registryDir(root) {
+  return path.join(root, process.env.OPENCODE_PSA_DIR || ".opencode-subagent");
 }
 
-function registryPath(cwd) {
-  return path.join(registryDir(cwd), "registry.json");
+function registryPath(root) {
+  return path.join(registryDir(root), "registry.json");
 }
 
-function lockPath(cwd) {
-  return path.join(registryDir(cwd), "registry.lock");
+function lockPath(root) {
+  return path.join(registryDir(root), "registry.lock");
 }
 
 function printJson(obj) {
@@ -87,8 +87,8 @@ async function ensureCwd(input) {
   return cwd;
 }
 
-async function readRegistry(cwd) {
-  const file = registryPath(cwd);
+async function readRegistry(root) {
+  const file = registryPath(root);
   try {
     const text = await fsp.readFile(file, "utf8");
     const data = JSON.parse(text);
@@ -101,10 +101,10 @@ async function readRegistry(cwd) {
   }
 }
 
-async function writeRegistryAtomic(cwd, registry) {
-  const dir = registryDir(cwd);
+async function writeRegistryAtomic(root, registry) {
+  const dir = registryDir(root);
   await fsp.mkdir(dir, { recursive: true });
-  const file = registryPath(cwd);
+  const file = registryPath(root);
   const tmp = `${file}.tmp.${process.pid}.${Math.random().toString(16).slice(2)}`;
   const data = JSON.stringify(registry);
   const fd = fs.openSync(tmp, "w");
@@ -127,10 +127,10 @@ async function writeRegistryAtomic(cwd, registry) {
   }
 }
 
-async function withRegistryLock(cwd, fn) {
-  const dir = registryDir(cwd);
+async function withRegistryLock(root, fn) {
+  const dir = registryDir(root);
   await fsp.mkdir(dir, { recursive: true });
-  const lock = lockPath(cwd);
+  const lock = lockPath(root);
   const start = Date.now();
   while (true) {
     try {
@@ -155,20 +155,34 @@ async function withRegistryLock(cwd, fn) {
   }
 }
 
-async function upsertAgent(cwd, record) {
-  return withRegistryLock(cwd, async () => {
-    const registry = await readRegistry(cwd);
+async function upsertAgent(root, record) {
+  return withRegistryLock(root, async () => {
+    const registry = await readRegistry(root);
     if (!registry.agents || typeof registry.agents !== "object") registry.agents = {};
     registry.agents[record.name] = record;
     registry.updatedAt = record.updatedAt || nowIso();
-    await writeRegistryAtomic(cwd, registry);
+    await writeRegistryAtomic(root, registry);
     return registry;
   });
 }
 
-async function refreshRegistry(cwd, names) {
-  return withRegistryLock(cwd, async () => {
-    const registry = await readRegistry(cwd);
+async function upsertAgentWithRetry(root, record, attempts = 3) {
+  let lastErr = null;
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      await upsertAgent(root, record);
+      return;
+    } catch (err) {
+      lastErr = err;
+      await delay(LOCK_RETRY_MS * 5);
+    }
+  }
+  throw lastErr;
+}
+
+async function refreshRegistry(root, names) {
+  return withRegistryLock(root, async () => {
+    const registry = await readRegistry(root);
     const agents = registry.agents || {};
     const keys = names && names.length ? names : Object.keys(agents);
     const now = nowIso();
@@ -212,7 +226,7 @@ async function refreshRegistry(cwd, names) {
     if (changed) {
       registry.agents = agents;
       registry.updatedAt = now;
-      await writeRegistryAtomic(cwd, registry);
+      await writeRegistryAtomic(root, registry);
     }
 
     return registry;
@@ -257,9 +271,9 @@ function diffStatuses(prevAgents, nextAgents) {
   return changes;
 }
 
-async function waitForTerminal(cwd, name, timeoutSec) {
+async function waitForTerminal(root, name, timeoutSec) {
   const deadline = timeoutSec > 0 ? Date.now() + timeoutSec * 1000 : null;
-  let prevRegistry = await refreshRegistry(cwd, [name]);
+  let prevRegistry = await refreshRegistry(root, [name]);
   let prevAgents = agentsArray(prevRegistry, name);
   let current = prevAgents.find((a) => a && a.name === name);
   if (current && (current.status === "done" || current.status === "unknown")) {
@@ -268,7 +282,7 @@ async function waitForTerminal(cwd, name, timeoutSec) {
 
   while (true) {
     await delay(500);
-    const nextRegistry = await refreshRegistry(cwd, [name]);
+    const nextRegistry = await refreshRegistry(root, [name]);
     const nextAgents = agentsArray(nextRegistry, name);
     const changed = diffStatuses(prevAgents, nextAgents);
     current = nextAgents.find((a) => a && a.name === name);
@@ -560,21 +574,29 @@ async function runCommand(argv) {
 
   requireCommand("opencode");
 
-  const cwd = await ensureCwd(cwdInput);
+  const registryRoot = process.cwd();
+  const targetCwd = await ensureCwd(cwdInput);
   const modelValue = model || process.env.OPENCODE_PSA_MODEL || DEFAULT_MODEL;
   const title = `persistent-subagent: ${name}`;
   let sessionId = "";
   let mode = "new";
 
+  const registry = await readRegistry(registryRoot);
+  const existing = registry.agents && registry.agents[name];
+  if (existing && !resume) {
+    fail("Name already exists", "E_NAME_EXISTS", { name, existingCwd: existing.cwd || null });
+  }
+  if (existing && resume && existing.cwd && existing.cwd !== targetCwd) {
+    fail("Name already exists", "E_NAME_EXISTS", { name, existingCwd: existing.cwd, cwd: targetCwd });
+  }
+
   if (resume) {
     mode = "resume";
-    const registry = await readRegistry(cwd);
-    const existing = registry.agents && registry.agents[name];
     if (existing && typeof existing.sessionId === "string" && existing.sessionId) {
       sessionId = existing.sessionId;
     }
     if (!sessionId) {
-      sessionId = await discoverSessionId(title, cwd, 5);
+      sessionId = await discoverSessionId(title, targetCwd, 5);
     }
     if (!sessionId) {
       fail("No session found for name", "E_SESSION_NOT_FOUND", { name });
@@ -593,24 +615,26 @@ async function runCommand(argv) {
     finishedAt: null,
     model: modelValue,
     prompt,
-    cwd,
+    cwd: targetCwd,
   };
 
-  await upsertAgent(cwd, scheduledRecord);
+  await upsertAgent(registryRoot, scheduledRecord);
 
   const payload = {
     name,
     prompt,
-    cwd,
+    cwd: targetCwd,
     title,
     agent,
     model: modelValue,
     sessionId,
     files,
     startedAt,
+    registryRoot,
   };
 
   const worker = spawn(process.execPath, [__filename, "run-worker"], {
+    cwd: registryRoot,
     detached: true,
     stdio: "ignore",
     env: { ...process.env, OPENCODE_PSA_PAYLOAD: JSON.stringify(payload) },
@@ -644,6 +668,7 @@ async function runWorker() {
   const name = payload.name;
   const prompt = payload.prompt;
   const cwd = payload.cwd;
+  const registryRoot = payload.registryRoot || process.cwd();
   const title = payload.title;
   const agent = payload.agent || "";
   const model = payload.model || DEFAULT_MODEL;
@@ -651,61 +676,98 @@ async function runWorker() {
   const files = Array.isArray(payload.files) ? payload.files : [];
   const startedAt = payload.startedAt || nowIso();
 
-  const args = ["run", prompt, "--title", title, "--model", model];
-  if (agent) args.push("--agent", agent);
-  if (sessionId) args.push("--session", sessionId);
-  for (const file of files) {
-    if (file) args.push("--file", file);
-  }
-
-  const child = spawn("opencode", args, { cwd, stdio: "ignore" });
-  const pid = child.pid || null;
-
-  const runningRecord = {
-    name,
-    pid,
-    sessionId: sessionId || null,
-    status: "running",
-    exitCode: null,
-    startedAt,
-    updatedAt: nowIso(),
-    finishedAt: null,
-    model,
-    prompt,
-    cwd,
-  };
-
-  await upsertAgent(cwd, runningRecord);
-
+  let pid = null;
   let discovered = sessionId;
-  if (!discovered) {
-    discovered = await discoverSessionId(title, cwd, 40);
-    if (discovered) {
-      const updated = { ...runningRecord, sessionId: discovered, updatedAt: nowIso() };
-      await upsertAgent(cwd, updated);
+  let exitCode = 1;
+  let spawnError = null;
+  let stderr = "";
+
+  try {
+    const args = ["run", prompt, "--title", title, "--model", model];
+    if (agent) args.push("--agent", agent);
+    if (sessionId) args.push("--session", sessionId);
+    for (const file of files) {
+      if (file) args.push("--file", file);
+    }
+
+    const child = spawn("opencode", args, { cwd, stdio: ["ignore", "ignore", "pipe"] });
+    pid = child.pid || null;
+    const exitPromise = new Promise((resolve) => {
+      if (child.exitCode !== null) {
+        resolve(typeof child.exitCode === "number" ? child.exitCode : 1);
+        return;
+      }
+      child.once("exit", (code) => resolve(typeof code === "number" ? code : 1));
+      child.once("error", () => resolve(1));
+    });
+    if (child.stderr) {
+      child.stderr.on("data", (chunk) => {
+        if (stderr.length >= 8192) return;
+        stderr += String(chunk || "");
+        if (stderr.length > 8192) stderr = stderr.slice(0, 8192);
+      });
+    }
+    child.on("error", (err) => {
+      spawnError = err;
+    });
+
+    const runningRecord = {
+      name,
+      pid,
+      sessionId: sessionId || null,
+      status: "running",
+      exitCode: null,
+      startedAt,
+      updatedAt: nowIso(),
+      finishedAt: null,
+      model,
+      prompt,
+      cwd,
+    };
+
+    await upsertAgentWithRetry(registryRoot, runningRecord, 10);
+
+    if (!discovered) {
+      discovered = await discoverSessionId(title, cwd, 40);
+      if (discovered) {
+        const updated = { ...runningRecord, sessionId: discovered, updatedAt: nowIso() };
+        await upsertAgentWithRetry(registryRoot, updated, 10);
+      }
+    }
+
+    exitCode = await exitPromise;
+
+    if (!discovered) {
+      discovered = await discoverSessionId(title, cwd, 10);
+    }
+  } catch (err) {
+    if (!spawnError) spawnError = err;
+  } finally {
+    const errorInfo = spawnError ? String(spawnError.message || spawnError) : null;
+    const stderrTrimmed = stderr.trim() || null;
+    const finishedAt = nowIso();
+    const doneRecord = {
+      name,
+      pid,
+      sessionId: discovered || null,
+      status: "done",
+      exitCode,
+      startedAt,
+      updatedAt: finishedAt,
+      finishedAt,
+      model,
+      prompt,
+      cwd,
+      error: errorInfo,
+      stderr: stderrTrimmed,
+    };
+    try {
+      await upsertAgentWithRetry(registryRoot, doneRecord, 10);
+    } catch {
+      // last-resort: avoid crashing the worker before exit
     }
   }
 
-  const exitCode = await new Promise((resolve) => {
-    child.on("exit", (code) => resolve(typeof code === "number" ? code : 1));
-    child.on("error", () => resolve(1));
-  });
-
-  const finishedAt = nowIso();
-  const doneRecord = {
-    name,
-    pid,
-    sessionId: discovered || null,
-    status: "done",
-    exitCode,
-    startedAt,
-    updatedAt: finishedAt,
-    finishedAt,
-    model,
-    prompt,
-    cwd,
-  };
-  await upsertAgent(cwd, doneRecord);
   process.exit(0);
 }
 
@@ -749,27 +811,27 @@ async function statusCommand(argv) {
     fail("--wait-terminal requires --name", "E_WAIT_NAME_REQUIRED");
   }
 
-  const cwd = await ensureCwd(cwdInput);
+  const registryRoot = process.cwd();
 
   if (!wait && !waitTerminal) {
-    const registry = await refreshRegistry(cwd, name ? [name] : null);
+    const registry = await refreshRegistry(registryRoot, name ? [name] : null);
     printJson({ ok: true, agents: agentsArray(registry, name) });
     return;
   }
 
   if (waitTerminal) {
-    const res = await waitForTerminal(cwd, name, timeoutSec);
+    const res = await waitForTerminal(registryRoot, name, timeoutSec);
     printJson({ ok: true, agents: res.agents, changed: res.changed || [] });
     return;
   }
 
   const deadline = timeoutSec > 0 ? Date.now() + timeoutSec * 1000 : null;
-  let prevRegistry = await refreshRegistry(cwd, name ? [name] : null);
+  let prevRegistry = await refreshRegistry(registryRoot, name ? [name] : null);
   let prevAgents = agentsArray(prevRegistry, name);
 
   while (true) {
     await delay(500);
-    const nextRegistry = await refreshRegistry(cwd, name ? [name] : null);
+    const nextRegistry = await refreshRegistry(registryRoot, name ? [name] : null);
     const nextAgents = agentsArray(nextRegistry, name);
     const changed = diffStatuses(prevAgents, nextAgents);
     if (changed.length > 0) {
@@ -822,9 +884,9 @@ async function resultCommand(argv) {
   if (!name) fail("--name is required", "E_NAME_REQUIRED");
   requireCommand("opencode");
 
-  const cwd = await ensureCwd(cwdInput);
+  const registryRoot = process.cwd();
 
-  const existingRegistry = await refreshRegistry(cwd, [name]);
+  const existingRegistry = await refreshRegistry(registryRoot, [name]);
   const existingRecord = existingRegistry.agents ? existingRegistry.agents[name] : null;
   if (!existingRecord) {
     printJson(errorPayload("No session found for name", "E_NAME_NOT_FOUND"));
@@ -832,14 +894,14 @@ async function resultCommand(argv) {
   }
 
   if (wait) {
-    const res = await waitForTerminal(cwd, name, timeoutSec);
+    const res = await waitForTerminal(registryRoot, name, timeoutSec);
     if (res.timedOut) {
       printJson(errorPayload("Result wait timed out", "E_TIMEOUT"));
       process.exit(1);
     }
   }
 
-  const registry = await refreshRegistry(cwd, [name]);
+  const registry = await refreshRegistry(registryRoot, [name]);
   const record = registry.agents ? registry.agents[name] : null;
   if (!record) {
     printJson(errorPayload("No session found for name", "E_NAME_NOT_FOUND"));
@@ -851,13 +913,15 @@ async function resultCommand(argv) {
     process.exit(1);
   }
 
+  const targetCwd = record.cwd || process.cwd();
   let sessionId = record.sessionId || "";
   if (!sessionId) {
     const title = `persistent-subagent: ${name}`;
-    sessionId = await discoverSessionId(title, cwd, 5);
+    const attempts = wait ? 20 : 5;
+    sessionId = await discoverSessionId(title, targetCwd, attempts);
     if (sessionId) {
       const updated = { ...record, sessionId, updatedAt: nowIso() };
-      await upsertAgent(cwd, updated);
+      await upsertAgent(registryRoot, updated);
     }
   }
   if (!sessionId) {
@@ -869,7 +933,7 @@ async function resultCommand(argv) {
   let exportStdout = "";
   try {
     const res = await execFileAsync("opencode", ["export", sessionId], {
-      cwd,
+      cwd: targetCwd,
       timeout: EXPORT_TIMEOUT_MS,
       maxBuffer: EXEC_MAX_BUFFER,
     });
@@ -940,14 +1004,15 @@ async function searchCommand(argv) {
   if (!pattern) fail("--pattern is required", "E_PATTERN_REQUIRED");
   requireCommand("opencode");
 
-  const cwd = await ensureCwd(cwdInput);
-  const registry = await refreshRegistry(cwd, [name]);
+  const registryRoot = process.cwd();
+  const registry = await refreshRegistry(registryRoot, [name]);
   const record = registry.agents ? registry.agents[name] : null;
   if (!record) {
     printJson(errorPayload("No session found for name", "E_NAME_NOT_FOUND"));
     process.exit(1);
   }
 
+  const targetCwd = record.cwd || process.cwd();
   const sessionId = record.sessionId || "";
   if (!sessionId) {
     printJson(errorPayload("Missing sessionId", "E_SESSIONID_MISSING"));
@@ -958,7 +1023,7 @@ async function searchCommand(argv) {
   let exportStdout2 = "";
   try {
     const res = await execFileAsync("opencode", ["export", sessionId], {
-      cwd,
+      cwd: targetCwd,
       timeout: EXPORT_TIMEOUT_MS,
       maxBuffer: EXEC_MAX_BUFFER,
     });
@@ -1015,9 +1080,9 @@ async function cancelCommand(argv) {
   }
 
   if (!name) fail("--name is required", "E_NAME_REQUIRED");
-  const cwd = await ensureCwd(cwdInput);
 
-  const registry = await refreshRegistry(cwd, [name]);
+  const registryRoot = process.cwd();
+  const registry = await refreshRegistry(registryRoot, [name]);
   const record = registry.agents ? registry.agents[name] : null;
   if (!record) {
     printJson(errorPayload("Agent not running", "E_NOT_RUNNING"));

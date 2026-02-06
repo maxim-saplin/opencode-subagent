@@ -27,7 +27,7 @@ describe("search.sh behavior", () => {
       "MOCK:REPLY:SEARCH_OK",
       "--cwd",
       cwd,
-    ], { cwd: ROOT, env: mockEnv(cwd) });
+    ], { cwd, env: mockEnv(cwd) });
 
     await waitForStatusDone(cwd, "search-agent");
 
@@ -41,7 +41,7 @@ describe("search.sh behavior", () => {
       "--cwd",
       cwd,
       "--json",
-    ], { cwd: ROOT, env: mockEnv(cwd) });
+    ], { cwd, env: mockEnv(cwd) });
 
     const json = JSON.parse(String(stdout ?? "").trim());
     expect(json.ok).toBe(true);
@@ -58,7 +58,7 @@ describe("search.sh behavior", () => {
       "--cwd",
       cwd,
       "--json",
-    ], { cwd: ROOT, env: mockEnv(cwd) }).catch((err: unknown) => err);
+    ], { cwd, env: mockEnv(cwd) }).catch((err: unknown) => err);
 
     const stdout = (res as { stdout?: string }).stdout ?? "";
     const json = JSON.parse(String(stdout ?? "").trim());

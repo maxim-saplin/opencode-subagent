@@ -60,7 +60,7 @@ OPENCODE_PSA_MODEL=opencode/gpt-5-nano bun test tests/llm
 ## Developer context
 
 - Solution layout: skill lives under `.claude/skills/opencode-subagent/` with scripts in `scripts/` and Node CLI in `bin/`.
-- Registry: runs are tracked in `<cwd>/.opencode-subagent/registry.json` (mutable, latest per name).
+- Registry: runs are tracked in `<orchestrator-cwd>/.opencode-subagent/registry.json` (mutable, latest per name).
 - Tests: non-LLM uses a deterministic mock `opencode` shim; LLM suite is gated by `OPENCODE_PSA_MODEL`.
 
 ## Usage (recommended scripts)

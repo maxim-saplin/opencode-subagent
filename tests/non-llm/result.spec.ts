@@ -20,7 +20,7 @@ describe("result.sh behavior", () => {
     await fs.mkdir(cwd, { recursive: true });
 
     const res = await exec(RESULT, ["--name", "missing", "--cwd", cwd, "--json"], {
-      cwd: ROOT,
+      cwd,
       env: mockEnv(cwd),
     }).catch((err: unknown) => err);
 
@@ -40,7 +40,7 @@ describe("result.sh behavior", () => {
       "MOCK:REPLY:RESULT_OK",
       "--cwd",
       cwd,
-    ], { cwd: ROOT, env: mockEnv(cwd) });
+    ], { cwd, env: mockEnv(cwd) });
 
     const { stdout } = await exec(RESULT, [
       "--name",
@@ -52,13 +52,45 @@ describe("result.sh behavior", () => {
       cwd,
       "--json",
     ], {
-      cwd: ROOT,
+      cwd,
       env: mockEnv(cwd),
     });
 
     const json = JSON.parse(String(stdout ?? "").trim());
     expect(json.ok).toBe(true);
     expect(json.lastAssistantText).toBe("RESULT_OK");
+  });
+
+  it("uses registry under orchestrator working dir", async () => {
+    const root = path.join(ROOT, ".tmp", "tests", "result-root");
+    const target = path.join(root, "work");
+    await fs.mkdir(target, { recursive: true });
+    await fs.rm(path.join(root, ".opencode-subagent"), { recursive: true, force: true });
+
+    await exec(RUN, [
+      "--name",
+      "root-agent",
+      "--prompt",
+      "MOCK:REPLY:ROOT_OK",
+      "--cwd",
+      target,
+    ], { cwd: root, env: mockEnv(target) });
+
+    const { stdout } = await exec(RESULT, [
+      "--name",
+      "root-agent",
+      "--wait",
+      "--timeout",
+      "10",
+      "--json",
+    ], {
+      cwd: root,
+      env: mockEnv(target),
+    });
+
+    const json = JSON.parse(String(stdout ?? "").trim());
+    expect(json.ok).toBe(true);
+    expect(json.lastAssistantText).toBe("ROOT_OK");
   });
 
   it("fails fast when sessionId is missing", async () => {
@@ -87,7 +119,7 @@ describe("result.sh behavior", () => {
     await fs.writeFile(registryPath, JSON.stringify(record), "utf8");
 
     const res = await exec(RESULT, ["--name", "missing-session", "--cwd", cwd, "--json"], {
-      cwd: ROOT,
+      cwd,
       env: mockEnv(cwd),
     }).catch((err: unknown) => err);
 

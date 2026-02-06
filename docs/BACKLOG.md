@@ -33,7 +33,7 @@ Conventions:
 | B-013 | P2 | M | Done | Update/expand deterministic tests for JS migration |
 | B-014 | P3 | M | Needs clarification | `status --diagram` ASCII overview |
 | B-015 | P3 | L | Needs clarification | Status token/usage reporting (if feasible) |
-| B-016 | P2 | M | Needs clarification | SessionId gap closure (see gap plan) |
+| B-016 | P2 | M | Needs clarification | SessionId gap closure |
 | B-017 | P2 | M | Needs clarification | Single registry root (no CWD scoping) |
 
 ## P0 — Migration (first) + unblock automation
@@ -56,7 +56,7 @@ Conventions:
 - Status: Done
 - Why: Append-only JSONL is harder to make race-safe; we want an atomic “latest state” registry.
 - Proposed format:
-  - `<cwd>/.opencode-subagent/registry.json` containing a map keyed by `name`.
+  - `<orchestrator-cwd>/.opencode-subagent/registry.json` containing a map keyed by `name`.
   - Optional: keep a short per-agent history array if needed for debugging.
 - Acceptance:
   - Updates are atomic (write temp + rename).
@@ -166,12 +166,12 @@ Notes:
 Notes:
 - Added concurrent registry write test in tests/non-llm/registry.spec.ts.
 
-### B-016) SessionId gap closure (see gap plan)
+### B-016) SessionId gap closure
 
 - Status: Needs clarification
 - Why: Some runs still finish without a `sessionId`, blocking result export.
 - Scope:
-  - Follow docs/SESSIONID-GAP-PLAN.md for discovery hardening.
+  - Close remaining gaps where `sessionId` stays null.
 
 ### B-017) Single registry root (no CWD scoping)
 
@@ -208,10 +208,7 @@ These are follow-on ideas that still need decisions before they become actionabl
 3) Cancel no-op flag
 - Decision: strict only (no `--no-op-ok`).
 
-4) SessionId gap plan
-- See docs/SESSIONID-GAP-PLAN.md (Backlog: B-016).
-
-5) Single registry (no CWD scoping)
+4) Single registry (no CWD scoping)
 - See B-017 for scope and decision.
 
 6) `status --diagram`

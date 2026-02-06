@@ -25,7 +25,7 @@ describe("run_subagent.sh behavior", () => {
       "MOCK:REPLY:HELLO",
       "--cwd",
       cwd,
-    ], { cwd: ROOT, env: mockEnv(cwd) }).catch((err: unknown) => err);
+    ], { cwd, env: mockEnv(cwd) }).catch((err: unknown) => err);
 
     const stdout = (res as { stdout?: string }).stdout ?? "";
     const line = String(stdout ?? "").trim().split(/\r?\n/).pop() ?? "";
@@ -45,7 +45,7 @@ describe("run_subagent.sh behavior", () => {
       "MOCK:REPLY:SCHEDULED_OK",
       "--cwd",
       cwd,
-    ], { cwd: ROOT, env: mockEnv(cwd) });
+    ], { cwd, env: mockEnv(cwd) });
 
     const line = String(stdout ?? "").trim().split(/\r?\n/).find((l) => l.trim().startsWith("{")) ?? "{}";
     const json = JSON.parse(line);
@@ -70,7 +70,7 @@ describe("run_subagent.sh behavior", () => {
       "MOCK:REPLY:ACK1",
       "--cwd",
       cwd,
-    ], { cwd: ROOT, env: mockEnv(cwd) });
+    ], { cwd, env: mockEnv(cwd) });
 
     await waitForStatusDone(cwd, "resume-agent");
 
@@ -82,7 +82,7 @@ describe("run_subagent.sh behavior", () => {
       "MOCK:REPLY:ACK2",
       "--cwd",
       cwd,
-    ], { cwd: ROOT, env: mockEnv(cwd) });
+    ], { cwd, env: mockEnv(cwd) });
 
     const line = String(stdout ?? "").trim().split(/\r?\n/).find((l) => l.trim().startsWith("{")) ?? "{}";
     const json = JSON.parse(line);
@@ -103,7 +103,7 @@ describe("run_subagent.sh behavior", () => {
       path.join(ROOT, "tests", "fixtures", "attachment-token.txt"),
       "--cwd",
       cwd,
-    ], { cwd: ROOT, env: mockEnv(cwd) });
+    ], { cwd, env: mockEnv(cwd) });
 
     await waitForStatusDone(cwd, "attach-agent");
 
@@ -117,7 +117,7 @@ describe("run_subagent.sh behavior", () => {
       cwd,
       "--json",
     ], {
-      cwd: ROOT,
+      cwd,
       env: mockEnv(cwd),
     });
 

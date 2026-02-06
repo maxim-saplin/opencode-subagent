@@ -26,7 +26,7 @@ describe("status.sh behavior", () => {
       "MOCK:REPLY:ONE",
       "--cwd",
       cwd,
-    ], { cwd: ROOT, env: mockEnv(cwd) });
+    ], { cwd, env: mockEnv(cwd) });
 
     await exec(RUN, [
       "--name",
@@ -35,9 +35,9 @@ describe("status.sh behavior", () => {
       "MOCK:REPLY:TWO",
       "--cwd",
       cwd,
-    ], { cwd: ROOT, env: mockEnv(cwd) });
+    ], { cwd, env: mockEnv(cwd) });
 
-    const { stdout } = await exec(STATUS, ["--name", "status-two", "--json", "--cwd", cwd], { cwd: ROOT, env: mockEnv(cwd) });
+    const { stdout } = await exec(STATUS, ["--name", "status-two", "--json", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
     const json = JSON.parse(String(stdout ?? "").trim());
     expect(json.agents.length).toBe(1);
     expect(json.agents[0].name).toBe("status-two");
@@ -54,7 +54,7 @@ describe("status.sh behavior", () => {
       "MOCK:SLEEP:2 MOCK:REPLY:DONE",
       "--cwd",
       cwd,
-    ], { cwd: ROOT, env: mockEnv(cwd) });
+    ], { cwd, env: mockEnv(cwd) });
 
     const { stdout } = await exec(STATUS, [
       "--name",
@@ -65,7 +65,7 @@ describe("status.sh behavior", () => {
       "--json",
       "--cwd",
       cwd,
-    ], { cwd: ROOT, env: mockEnv(cwd) });
+    ], { cwd, env: mockEnv(cwd) });
     const json = JSON.parse(String(stdout ?? "").trim());
     expect(json.ok).toBe(true);
     expect(Array.isArray(json.changed)).toBe(true);
