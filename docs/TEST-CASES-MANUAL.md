@@ -24,7 +24,7 @@ These are the prompts and fixtures used across scenarios.
 | TT4 | Multi-turn handshake | `Turn 1: reply with ACK-1 only` then resume `Turn 2: reply with ACK-2 only` | `ACK-1`, then `ACK-2` |
 | TT5 | Classification | `Respond with exactly one of: CLEAN, SECURITY, PERFORMANCE` | One of the three labels |
 
-## Scenario O01 — Fan-Out / Parallel Execution
+## Scenario 01 — Fan-Out / Parallel Execution
 
 **Goal:** Spawn multiple independent tasks, wait for all to complete, aggregate results.
 
@@ -37,7 +37,7 @@ These are the prompts and fixtures used across scenarios.
 - All three sessions reach `done`.
 - Each `result.sh` returns the correct token.
 
-## Scenario O02 — Sequential Pipeline
+## Scenario 02 — Sequential Pipeline
 
 **Goal:** Execute tasks in sequence where each depends on previous output.
 
@@ -51,7 +51,7 @@ These are the prompts and fixtures used across scenarios.
 - Review only runs after plan completes.
 - Review output confirms it saw the plan token.
 
-## Scenario O03 — Iterative Refinement (Multi-Turn Session)
+## Scenario 03 — Iterative Refinement (Multi-Turn Session)
 
 **Goal:** Resume the same named session across multiple turns.
 
@@ -65,7 +65,7 @@ These are the prompts and fixtures used across scenarios.
 - Same `sessionId` across both turns.
 - Latest result reflects only the newest turn.
 
-## Scenario O04 — File Attachment Validation
+## Scenario 04 — File Attachment Validation
 
 **Goal:** Verify file attachments are passed to the agent and influence output.
 
@@ -76,7 +76,7 @@ These are the prompts and fixtures used across scenarios.
 **Expected:**
 - Output includes `PSA_ATTACHMENT_OK`.
 
-## Scenario O05 — Supervision + Timeout + Cancel
+## Scenario 05 — Supervision + Timeout + Cancel
 
 **Goal:** Demonstrate monitoring and cancellation for long-running tasks.
 
@@ -89,7 +89,7 @@ These are the prompts and fixtures used across scenarios.
 - If canceled, status becomes `done` or `unknown` and PID is no longer alive.
 - If not canceled, result contains `TIMEBOX_OK`.
 
-## Scenario O06 — Conditional Branching
+## Scenario 06 — Conditional Branching
 
 **Goal:** Branch on agent output content.
 
@@ -103,7 +103,7 @@ These are the prompts and fixtures used across scenarios.
 - Only the relevant follow-up agent is spawned.
 - Follow-up result contains the expected token.
 
-## Scenario O07 — Scatter-Gather with Synthesis
+## Scenario 07 — Scatter-Gather with Synthesis
 
 **Goal:** Split work, gather outputs, then synthesize.
 
@@ -117,7 +117,7 @@ These are the prompts and fixtures used across scenarios.
 - Both review agents complete.
 - Synthesis returns `SYNTH_OK`.
 
-## Scenario O08 — Checkpoint and Resume Across Orchestrator Sessions
+## Scenario 08 — Checkpoint and Resume Across Orchestrator Sessions
 
 **Goal:** Validate that sessions can be resumed across orchestrator restarts.
 
@@ -130,3 +130,21 @@ These are the prompts and fixtures used across scenarios.
 **Expected:**
 - Status shows existing entry from previous session.
 - Resume uses same `sessionId` and returns `RESUME_CONTINUE_OK`.
+
+## Scenario 09 — Dialog Inspection + Search
+
+**Goal:** Verify the orchestrator can inspect dialog and search history by role.
+
+**Steps:**
+1. Run `dlg/inspect` with prompt: `Return EXACT token: DLG_AST_1 (do not repeat USR_TKN_1). USR_TKN_1`
+2. Wait, fetch `result.sh --json`, verify `DLG_AST_1`.
+3. Resume `dlg/inspect` with prompt: `Return EXACT token: DLG_AST_2 (do not repeat USR_TKN_2). USR_TKN_2`
+4. Wait, fetch `result.sh --json`, verify `DLG_AST_2`.
+5. Run `search.sh --name dlg/inspect --pattern DLG_AST_1 --role assistant`.
+6. Run `search.sh --name dlg/inspect --pattern DLG_AST_2 --role assistant`.
+7. Run `search.sh --name dlg/inspect --pattern USR_TKN_1 --role user`.
+8. Run `search.sh --name dlg/inspect --pattern USR_TKN_2 --role user`.
+
+**Expected:**
+- `search.sh` finds both assistant tokens under `assistant` role and both user tokens under `user` role.
+- The latest `result.sh` output reflects the most recent turn.
