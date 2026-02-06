@@ -61,4 +61,29 @@ describe("registry mechanics", () => {
     expect(parsed.agents).toBeTruthy();
     expect(parsed.agents["lines-agent"]).toBeTruthy();
   });
+
+  it("handles concurrent registry writes", async () => {
+    const cwd = path.join(ROOT, ".tmp", "tests", "registry-concurrent");
+    await fs.mkdir(cwd, { recursive: true });
+
+    const names = Array.from({ length: 6 }, (_, i) => `concurrent-${i + 1}`);
+    await Promise.all(
+      names.map((name) =>
+        exec(RUN, [
+          "--name",
+          name,
+          "--prompt",
+          "MOCK:REPLY:OK",
+          "--cwd",
+          cwd,
+        ], { cwd: ROOT, env: mockEnv(cwd) }),
+      ),
+    );
+
+    const registry = await fs.readFile(path.join(cwd, ".opencode-subagent", "registry.json"), "utf8");
+    const parsed = JSON.parse(registry);
+    for (const name of names) {
+      expect(parsed.agents[name]).toBeTruthy();
+    }
+  });
 });

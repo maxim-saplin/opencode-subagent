@@ -315,9 +315,10 @@ async function discoverSessionId(title, cwd, attempts = 40) {
       timeout: 5000,
       maxBuffer: EXEC_MAX_BUFFER,
     });
-      const text = String(stdout || "").trim();
-      if (text) {
-        const data = JSON.parse(text);
+      const text = String(stdout || "");
+      const jsonText = extractJsonSubstring(text);
+      if (jsonText) {
+        const data = JSON.parse(jsonText);
         const id = parseSessionList(data, title);
         if (id) return id;
       }

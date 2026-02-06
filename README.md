@@ -6,14 +6,14 @@ Quick start:
 - Start: `run_subagent.sh --name <name> --prompt <text>`
 - Check: `status.sh --json`
 - Result: `result.sh --name <name>`
- - Wait for done: `status.sh --name <name> --wait-terminal --timeout 60 --json`
- - Wait and fetch: `result.sh --name <name> --wait --timeout 60 --json`
+- Wait for done: `status.sh --name <name> --wait-terminal --timeout 60 --json`
+- Wait and fetch: `result.sh --name <name> --wait --timeout 60 --json`
 
 ---
 
 ## Files
 
-- `.claude/skills/opencode-subagent/SKILL.md` — the OpenCode skill definition (v2)
+- `.claude/skills/opencode-subagent/SKILL.md` — the OpenCode skill definition (v3)
 - `.claude/skills/opencode-subagent/scripts/` — helper scripts used by the skill
 
 ---
@@ -29,7 +29,7 @@ Quick start:
 
 ## Skill installation
 
-This repo contrains the skill in Cluade Code project-local discovery path:
+This repo contains the skill in the Claude Code project-local discovery path:
 
 - `.claude/skills/opencode-subagent/SKILL.md`
 

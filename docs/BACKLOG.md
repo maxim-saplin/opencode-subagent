@@ -1,8 +1,8 @@
 # Backlog (opencode-subagent)
 
-Last updated: 2026-02-02
+Last updated: 2026-02-06
 
-This backlog is derived from `docs/TEST-DRIVE-REPORT-2026-02-01.md` plus code review of the v2 scripts and tests.
+This backlog is derived from code review and manual validation notes.
 
 Conventions:
 - **Priority**: P0 (blocking), P1 (high), P2 (medium), P3 (nice-to-have).
@@ -18,27 +18,29 @@ Conventions:
 
 | ID | Pri | Eff | Status | Title |
 |---:|:---:|:---:|:-------|:------|
-| B-001 | P0 | L | Not started | JS migration: single Node CLI + `.sh` wrappers |
-| B-002 | P0 | M | Not started | Registry v3: atomic mutable file (not JSONL) |
-| B-003 | P0 | M | Not started | `result`: non-hanging + bounded export timeout |
-| B-004 | P0 | S | Not started | `run`: JSON error contract for invalid `--cwd` |
-| B-005 | P1 | M | Not started | `status`: add `--wait-terminal` |
-| B-006 | P1 | M | Not started | `result`: add `--wait`/`--timeout` |
-| B-007 | P1 | S | Not started | `cancel`: strict non-running semantics |
-| B-008 | P1 | M | Not started | SessionId discovery improvements (run + result) |
-| B-009 | P2 | M | Not started | Error codes (`code`) across all commands |
-| B-010 | P2 | M | Not started | Update docs for Node/registry/flags |
-| B-011 | P2 | S | Not started | Doc alignment (v2↔v3 consistency sweep) |
-| B-012 | P2 | S | Not started | Post-fix manual validation (O04/O07) |
-| B-013 | P2 | M | Not started | Update/expand deterministic tests for JS migration |
+| B-001 | P0 | L | Done | JS migration: single Node CLI + `.sh` wrappers |
+| B-002 | P0 | M | Done | Registry v3: atomic mutable file (not JSONL) |
+| B-003 | P0 | M | Done | `result`: non-hanging + bounded export timeout |
+| B-004 | P0 | S | Done | `run`: JSON error contract for invalid `--cwd` |
+| B-005 | P1 | M | Done | `status`: add `--wait-terminal` |
+| B-006 | P1 | M | Done | `result`: add `--wait`/`--timeout` |
+| B-007 | P1 | S | Done | `cancel`: strict non-running semantics |
+| B-008 | P1 | M | Done | SessionId discovery improvements (run + result) |
+| B-009 | P2 | M | Done | Error codes (`code`) across all commands |
+| B-010 | P2 | M | Done | Update docs for Node/registry/flags |
+| B-011 | P2 | S | Done | Doc alignment (v2↔v3 consistency sweep) |
+| B-012 | P2 | S | Done | Post-fix manual validation (O04/O07) |
+| B-013 | P2 | M | Done | Update/expand deterministic tests for JS migration |
 | B-014 | P3 | M | Needs clarification | `status --diagram` ASCII overview |
 | B-015 | P3 | L | Needs clarification | Status token/usage reporting (if feasible) |
+| B-016 | P2 | M | Needs clarification | SessionId gap closure (see gap plan) |
+| B-017 | P2 | M | Needs clarification | Single registry root (no CWD scoping) |
 
 ## P0 — Migration (first) + unblock automation
 
 ### B-001) JS migration: single Node CLI + `.sh` wrappers
 
-- Status: Not started
+- Status: Done
 - Why: Shell + `osascript` is macOS-specific and makes timeouts/JSON brittle.
 - Scope:
   - Implement one Node CLI with subcommands: `run`, `status`, `result`, `search`, `cancel`.
@@ -51,7 +53,7 @@ Conventions:
 
 ### B-002) Registry v3: atomic mutable file (not JSONL)
 
-- Status: Not started
+- Status: Done
 - Why: Append-only JSONL is harder to make race-safe; we want an atomic “latest state” registry.
 - Proposed format:
   - `<cwd>/.opencode-subagent/registry.json` containing a map keyed by `name`.
@@ -63,7 +65,7 @@ Conventions:
 
 ### B-003) `result`: non-hanging + bounded export timeout
 
-- Status: Not started
+- Status: Done
 - Why: Blocks O04 and O07; `opencode export` must never hang the orchestrator.
 - Acceptance:
   - If `sessionId` missing/empty: fail fast (`ok:false`) and do not attempt export.
@@ -72,7 +74,7 @@ Conventions:
 
 ### B-004) `run`: JSON error contract for invalid `--cwd`
 
-- Status: Not started
+- Status: Done
 - Why: Orchestrators need consistent JSON on early failures.
 - Acceptance:
   - Invalid `--cwd` returns one-line JSON error and non-zero exit.
@@ -82,7 +84,7 @@ Conventions:
 
 ### B-005) `status`: add `--wait-terminal`
 
-- Status: Not started
+- Status: Done
 - Why: Current `--wait` returns on any change; orchestration needs “wait until terminal”.
 - Acceptance:
   - `--wait` semantics remain unchanged.
@@ -91,7 +93,7 @@ Conventions:
 
 ### B-006) `result`: add `--wait`/`--timeout`
 
-- Status: Not started
+- Status: Done
 - Why: Orchestrators should be able to “wait then fetch” in one call.
 - Acceptance:
   - With `--wait`, wait until terminal then export.
@@ -99,7 +101,7 @@ Conventions:
 
 ### B-007) `cancel`: strict non-running semantics
 
-- Status: Not started
+- Status: Done
 - Why: Cancel should not claim success when nothing is running.
 - Acceptance:
   - If target is not running, return `ok:false` with a clear `code`.
@@ -108,7 +110,7 @@ Conventions:
 
 ### B-008) SessionId discovery improvements (run + result)
 
-- Status: Not started
+- Status: Done
 - Why: Some runs can end up with `sessionId:null`; `result` depends on it.
 - Acceptance:
   - `run` attempts discovery and persists `sessionId` when available.
@@ -118,14 +120,14 @@ Conventions:
 
 ### B-009) Error codes (`code`) across all commands
 
-- Status: Not started
+- Status: Done
 - Why: Orchestrators benefit from stable machine-readable reasons.
 - Acceptance:
   - Errors include a short `code` (e.g., `E_CWD_INVALID`, `E_SESSIONID_MISSING`, `E_EXPORT_TIMEOUT`).
 
 ### B-010) Update docs for Node/registry/flags
 
-- Status: Not started
+- Status: Done
 - Scope:
   - `.claude/skills/opencode-subagent/SKILL.md`
   - README usage examples
@@ -133,7 +135,7 @@ Conventions:
 
 ### B-011) Doc alignment (v2↔v3 consistency sweep)
 
-- Status: Not started
+- Status: Done
 - Why: During migration we will temporarily have v2 and v3 docs side-by-side; we need one pass to ensure readers don’t get conflicting instructions.
 - Scope:
   - Ensure all docs clearly label whether they apply to v2 vs v3.
@@ -146,17 +148,37 @@ Conventions:
 
 ### B-012) Post-fix manual validation (O04/O07)
 
-- Status: Not started
+- Status: Done
 - Acceptance:
   - Re-run O04 and O07 with a real model and record outcomes.
 
+Notes:
+- Rerun on 2026-02-02 with OPENCODE_PSA_MODEL=dial/gpt-5-mini. O04 and O07 were partial/blocked due to missing sessionId in attachments/review runs.
+
 ### B-013) Update/expand deterministic tests for JS migration
 
-- Status: Not started
+- Status: Done
 - Why: Migration will change the registry format and internals; tests must cover behavior, not implementation details.
 - Acceptance:
   - Non-LLM suite passes using mock `opencode`.
   - Add at least one test for concurrent registry updates (or lock behavior).
+
+Notes:
+- Added concurrent registry write test in tests/non-llm/registry.spec.ts.
+
+### B-016) SessionId gap closure (see gap plan)
+
+- Status: Needs clarification
+- Why: Some runs still finish without a `sessionId`, blocking result export.
+- Scope:
+  - Follow docs/SESSIONID-GAP-PLAN.md for discovery hardening.
+
+### B-017) Single registry root (no CWD scoping)
+
+- Status: Needs clarification
+- Why: Avoid ambiguity when querying across different working directories.
+- Scope:
+  - Add `OPENCODE_PSA_ROOT` to use a single registry under the orchestrator root.
 
 ## P3 — Nice-to-have / future ideas
 
@@ -174,35 +196,29 @@ Conventions:
 
 ## Further considerations (needs clarification)
 
-These are follow-on ideas from the test-drive report that are valuable, but need a decision before they become actionable backlog items.
+These are follow-on ideas that still need decisions before they become actionable.
 
 1) Node requirement and installation guidance
 - Decision: Node/npm is required at runtime; Bun is dev-only.
-- Remaining question: do we want to add a preflight check in wrappers that prints a friendlier error if `node` is missing?
+- Remaining question: do we want a friendlier wrapper error when `node` is missing?
 
-2) “Wait until terminal” semantics
-- Question: When `--name` is omitted, should `--wait-terminal` return when **any** agent reaches terminal, or only when **all** agents are terminal?
-- Recommendation: require `--name` for `--wait-terminal` (keep behavior unambiguous) and add a separate flag if we want “all”.
+2) `status --wait-terminal` without `--name`
+- Decision: wait until any agent reaches a terminal state.
 
-3) Cancel API contract
-- Decision: strict error when target is not running.
-- Remaining question: do we want an explicit `--no-op-ok` flag for idempotent “cancel everything” scripts?
+3) Cancel no-op flag
+- Decision: strict only (no `--no-op-ok`).
 
-4) Session ID discovery responsibility
-- Question: should `result` attempt a fallback lookup by title if `sessionId` is missing, or should it strictly require the registry to have the ID?
-- Recommendation: allow a brief fallback lookup but keep it bounded and optional.
+4) SessionId gap plan
+- See docs/SESSIONID-GAP-PLAN.md (Backlog: B-016).
 
-5) Reduce absolute paths in outputs/prompts
-- Question: Should scripts avoid printing absolute paths in JSON (e.g., omit `cwd` or store it but not print it), or is this only a prompt-engineering recommendation for manual tests?
+5) Single registry (no CWD scoping)
+- See B-017 for scope and decision.
 
-6) Token/usage reporting feasibility (affects B-015)
-- Question: Which exact “usage” metric is desired: tokens (prompt/completion/total), characters, or messages?
-- Constraint: Only implement tokens if `opencode export` exposes stable usage metadata.
+6) `status --diagram`
+- Needs clarification: keep an ASCII summary of names/status/pid/updatedAt.
 
-7) `status.sh --diagram` desired format (affects B-014)
-- Question: Should the diagram be purely ASCII table, a timeline-like diagram, or a tree view?
-- Decision needed: columns/fields (name, status, pid, sessionId, updatedAt, exitCode).
+7) Usage reporting
+- Needs clarification: surface usage only if export provides stable metadata.
 
-5) Registry file format
-- Question: Do we need to preserve any historical run records (debugging/audit), or is “latest per name” sufficient?
-- Recommendation: store latest per name + optionally a small ring buffer history per name.
+8) Registry history
+- Decision: not needed (latest per name only).

@@ -1,0 +1,8 @@
+{
+  "name": "OpenCode Subagent - main",
+  "image": "mcr.microsoft.com/devcontainers/base:jammy",
+  "workspaceFolder": "/workspace",
+  "settings": {
+    "terminal.integrated.shell.linux": "/bin/bash"
+  }
+}
