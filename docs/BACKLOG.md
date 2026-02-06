@@ -1,6 +1,6 @@
 # Backlog (opencode-subagent)
 
-Last updated: 2026-02-06
+Last updated: 2026-02-07
 
 This backlog is derived from code review and manual validation notes.
 
@@ -33,8 +33,8 @@ Conventions:
 | B-013 | P2 | M | Done | Update/expand deterministic tests for JS migration |
 | B-014 | P3 | M | Needs clarification | `status --diagram` ASCII overview |
 | B-015 | P3 | L | Needs clarification | Status token/usage reporting (if feasible) |
-| B-016 | P2 | M | Needs clarification | SessionId gap closure |
-| B-017 | P2 | M | Needs clarification | Single registry root (no CWD scoping) |
+| B-016 | P2 | M | Done | SessionId gap closure |
+| B-017 | P2 | M | Done | Single registry root (no CWD scoping) |
 
 ## P0 — Migration (first) + unblock automation
 
@@ -168,17 +168,18 @@ Notes:
 
 ### B-016) SessionId gap closure
 
-- Status: Needs clarification
+- Status: Done
 - Why: Some runs still finish without a `sessionId`, blocking result export.
 - Scope:
-  - Close remaining gaps where `sessionId` stays null.
+  - Harden discovery retries and ensure terminal records capture stderr/errors.
 
 ### B-017) Single registry root (no CWD scoping)
 
-- Status: Needs clarification
+- Status: Done
 - Why: Avoid ambiguity when querying across different working directories.
 - Scope:
-  - Add `OPENCODE_PSA_ROOT` to use a single registry under the orchestrator root.
+  - Use the orchestrator working directory as the single registry root.
+  - Reject duplicate names unless `--resume` is used.
 
 ## P3 — Nice-to-have / future ideas
 
@@ -208,14 +209,11 @@ These are follow-on ideas that still need decisions before they become actionabl
 3) Cancel no-op flag
 - Decision: strict only (no `--no-op-ok`).
 
-4) Single registry (no CWD scoping)
-- See B-017 for scope and decision.
-
-6) `status --diagram`
+4) `status --diagram`
 - Needs clarification: keep an ASCII summary of names/status/pid/updatedAt.
 
-7) Usage reporting
+5) Usage reporting
 - Needs clarification: surface usage only if export provides stable metadata.
 
-8) Registry history
+6) Registry history
 - Decision: not needed (latest per name only).
