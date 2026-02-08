@@ -31,8 +31,8 @@ Conventions:
 | B-011 | P2 | S | Done | Doc alignment (v2↔v3 consistency sweep) |
 | B-012 | P2 | S | Done | Post-fix manual validation (O04/O07) |
 | B-013 | P2 | M | Done | Update/expand deterministic tests for JS migration |
-| B-014 | P3 | M | Needs clarification | `status --diagram` ASCII overview |
-| B-015 | P3 | L | Needs clarification | Status token/usage reporting (if feasible) |
+| B-014 | P3 | M | Not started | `status --diagram` ASCII overview |
+| B-015 | P3 | L | Not started | Status token/usage reporting (if feasible) |
 | B-016 | P2 | M | Done | SessionId gap closure |
 | B-017 | P2 | M | Done | Single registry root (no CWD scoping) |
 
@@ -185,35 +185,16 @@ Notes:
 
 ### B-014) `status --diagram` ASCII overview
 
-- Status: Needs clarification
+- Status: Not started
 - Notes:
-  - Provide a compact view of names, states, PIDs, and updatedAt.
+  - Render from cached usage in registry (no export in render path).
+  - Include name, status, pid, messageCount, token totals, updatedAt.
+  - Support `--watch` to refresh the ASCII view.
 
 ### B-015) Status token/usage reporting (if feasible)
 
-- Status: Needs clarification
+- Status: Not started
 - Notes:
-  - Only do this if OpenCode export includes stable usage metadata; otherwise provide approximate counts (word/char) and label them clearly.
-
-## Further considerations (needs clarification)
-
-These are follow-on ideas that still need decisions before they become actionable.
-
-1) Node requirement and installation guidance
-- Decision: Node/npm is required at runtime; Bun is dev-only.
-- Remaining question: do we want a friendlier wrapper error when `node` is missing?
-
-2) `status --wait-terminal` without `--name`
-- Decision: wait until any agent reaches a terminal state.
-
-3) Cancel no-op flag
-- Decision: strict only (no `--no-op-ok`).
-
-4) `status --diagram`
-- Needs clarification: keep an ASCII summary of names/status/pid/updatedAt.
-
-5) Usage reporting
-- Needs clarification: surface usage only if export provides stable metadata.
-
-6) Registry history
-- Decision: not needed (latest per name only).
+  - Use a status daemon to run `opencode export` in the background.
+  - Cache tokens and message counts for running and done sessions.
+  - Embed usage in registry; expose `lastError` and `retryAt`.

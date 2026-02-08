@@ -43,6 +43,7 @@ These are the CLI contract tests for individual scripts (same IDs as before):
 - `search.sh`: H01–H05
 - `cancel.sh`: C01–C05
 - Registry mechanics: M01–M04
+- Status daemon + usage cache: D01–D06
 
 #### 2) End-to-End Orchestrator Scenarios (Deterministic)
 
@@ -56,6 +57,15 @@ Use mock prompts for predictable timing and outcomes:
 - A06: Failure and retry (`MOCK:EXIT:1` → `MOCK:REPLY:RECOVERED`)
 - A07: Concurrency cap (10 tasks, max 3 concurrent)
 - A08: Orchestrator restart (`--cwd .tmp/opencode-psa`)
+
+#### 3) Status Daemon + Usage Cache (Deterministic)
+
+- D01: Daemon spawns when first agent starts; registry records daemon pid.
+- D02: Daemon exits after no agents are `scheduled`/`running`.
+- D03: Running session shows `usage` appear with message count and dialogTokens.
+- D04: Done session usage finalizes and remains stable.
+- D05: Export failure appends a JSON line to `.opencode-subagent/usage-export.log`.
+- D06: `status --diagram` renders cached usage without blocking.
 
 ## LLM-Dependent Suite
 
@@ -73,6 +83,7 @@ Purpose: validate real OpenCode CLI behavior + real model execution, while keepi
 - L05: Fan-out (3 agents) completes and returns tokens
 - L06: Sequential pipeline (plan → review) preserves ordering
 - L07: Cancel long-running task and observe `done` or `unknown`
+- L11: `status --json` shows `usage` with dialogTokens and messageCount
 
 ### 3) OpenCode CLI Stability Checks (LLM)
 
