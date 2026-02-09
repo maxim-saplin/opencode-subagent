@@ -2,7 +2,7 @@
 
 This skill lets you run named, persistent OpenCode subagents that you can resume later. You get simple commands to start, check status, fetch the latest answer, search history, and cancel runs—without losing the session thread.
 
-Quick start:
+Some of the actions available to main agent (orchestrator):
 - Start: `run_subagent.sh --name <name> --prompt <text>`
 - Check: `status.sh`
 - Result: `result.sh --name <name>`
@@ -11,10 +11,14 @@ Quick start:
 
 ---
 
-## Files
+## Quick Start
 
-- `.claude/skills/opencode-subagent/SKILL.md` — the OpenCode skill definition
-- `.claude/skills/opencode-subagent/scripts/` — helper scripts used by the skill
+- Copy the skill to valid folder
+- In the prompt ask to use the skill, mention the OpenCode cnfigured model to use (e.g. `Use opencode subagents skill, use openai/gpt-5.2 model`
+- Launch a seapatw terminal session and watch live stats on running agents
+	```bash
+	./.claude/skills/opencode-subagent/scripts/status_watch.sh --cwd .
+	```
 
 ---
 
@@ -57,6 +61,16 @@ LLM tests are gated by `OPENCODE_PSA_MODEL`:
 OPENCODE_PSA_MODEL=opencode/gpt-5-nano bun test tests/llm
 ```
 
+
+---
+
+## Files
+
+- `.claude/skills/opencode-subagent/SKILL.md` — the OpenCode skill definition
+- `.claude/skills/opencode-subagent/scripts/` — helper scripts used by the skill
+---
+
+
 ## Developer context
 
 - Solution layout: skill lives under `.claude/skills/opencode-subagent/` with scripts in `scripts/` and Node CLI in `bin/`.
@@ -95,12 +109,6 @@ Search the subagent history (grep-like):
 ./.claude/skills/opencode-subagent/scripts/search.sh \
 	--name "hello" \
 	--pattern "closures|async"
-```
-
-Watch a live ASCII dashboard (user-facing):
-
-```bash
-./.claude/skills/opencode-subagent/scripts/status_watch.sh --cwd .
 ```
 
 ## Notes
