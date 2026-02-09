@@ -35,7 +35,7 @@ Some of the actions available to main agent (orchestrator):
 
 This repo contains the skill in the Claude Code project-local discovery path:
 
-- `.claude/skills/opencode-subagent/SKILL.md`
+- `.claude/skills/opencode-subagent/`
 
 Copy it to the location discoverable by your agent harness.
 
@@ -49,7 +49,21 @@ Global install, copy to:
 
 - `~/.config/opencode/skills/opencode-subagent/`
 
-## Tests
+---
+
+## Files
+
+- `.claude/skills/opencode-subagent/SKILL.md` — the OpenCode skill definition
+- `.claude/skills/opencode-subagent/scripts/` — helper scripts used by the skill
+---
+
+## Developer context
+
+- Solution layout: skill lives under `.claude/skills/opencode-subagent/` with scripts in `scripts/` and Node CLI in `bin/`.
+- Registry: runs are tracked in `<orchestrator-cwd>/.opencode-subagent/registry.json` (mutable, latest per name).
+- Tests: non-LLM uses a deterministic mock `opencode` shim; LLM suite is gated by `OPENCODE_PSA_MODEL`.
+
+### Tests
 
 ```bash
 bun test tests/non-llm
@@ -61,23 +75,7 @@ LLM tests are gated by `OPENCODE_PSA_MODEL`:
 OPENCODE_PSA_MODEL=opencode/gpt-5-nano bun test tests/llm
 ```
 
-
----
-
-## Files
-
-- `.claude/skills/opencode-subagent/SKILL.md` — the OpenCode skill definition
-- `.claude/skills/opencode-subagent/scripts/` — helper scripts used by the skill
----
-
-
-## Developer context
-
-- Solution layout: skill lives under `.claude/skills/opencode-subagent/` with scripts in `scripts/` and Node CLI in `bin/`.
-- Registry: runs are tracked in `<orchestrator-cwd>/.opencode-subagent/registry.json` (mutable, latest per name).
-- Tests: non-LLM uses a deterministic mock `opencode` shim; LLM suite is gated by `OPENCODE_PSA_MODEL`.
-
-## Usage (recommended scripts)
+### Usage (recommended scripts)
 
 Start a new persistent session (async-only, registry-backed):
 
@@ -111,7 +109,7 @@ Search the subagent history (grep-like):
 	--pattern "closures|async"
 ```
 
-## Notes
+### Notes
 
 If `opencode run` fails quickly, verify that your model ID is valid.
 Example known-good model:
