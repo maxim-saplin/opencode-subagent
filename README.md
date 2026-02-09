@@ -20,16 +20,12 @@ Some of the actions available to main agent (orchestrator):
 	./.claude/skills/opencode-subagent/scripts/status_watch.sh --cwd .
 	```
 
----
-
 ## Requirements
 
 - macOS or Linux
 - `opencode` CLI on PATH
 - Node.js available as `node`
 - A valid model ID (e.g. `opencode/gpt-5-nano`)
-
----
 
 ## Skill installation
 
@@ -48,8 +44,6 @@ OpenCode will discover it when copied to the folder:
 Global install, copy to:
 
 - `~/.config/opencode/skills/opencode-subagent/`
-
----
 
 ## Files
 
