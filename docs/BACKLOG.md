@@ -20,7 +20,7 @@ Conventions:
 |---:|:---:|:---:|:-------|:------|
 | B-018 | P1 | L | Needs clarification | [Context Management] Dialog cleanup script, drop older tool details by using an LLM to decide on summarizing certain tools and filling in with compressed detail |
 | B-001 | P0 | L | Done | JS migration: single Node CLI + `.sh` wrappers |
-| B-002 | P0 | M | Done | Registry v3: atomic mutable file (not JSONL) |
+| B-002 | P0 | M | Done | Registry: atomic mutable file (not JSONL) |
 | B-003 | P0 | M | Done | `result`: non-hanging + bounded export timeout |
 | B-004 | P0 | S | Done | `run`: JSON error contract for invalid `--cwd` |
 | B-005 | P1 | M | Done | `status`: add `--wait-terminal` |
@@ -29,7 +29,7 @@ Conventions:
 | B-008 | P1 | M | Done | SessionId discovery improvements (run + result) |
 | B-009 | P2 | M | Done | Error codes (`code`) across all commands |
 | B-010 | P2 | M | Done | Update docs for Node/registry/flags |
-| B-011 | P2 | S | Done | Doc alignment (v2↔v3 consistency sweep) |
+| B-011 | P2 | S | Done | Doc alignment (legacy↔current consistency sweep) |
 | B-012 | P2 | S | Done | Post-fix manual validation (O04/O07) |
 | B-013 | P2 | M | Done | Update/expand deterministic tests for JS migration |
 | B-014 | P3 | M | Done | `status --diagram` ASCII overview |
@@ -53,7 +53,7 @@ Conventions:
   - Outputs remain one-line JSON for programmatic calls.
   - Non-LLM tests can run using the mock `opencode` shim.
 
-### B-002) Registry v3: atomic mutable file (not JSONL)
+### B-002) Registry: atomic mutable file (not JSONL)
 
 - Status: Done
 - Why: Append-only JSONL is harder to make race-safe; we want an atomic “latest state” registry.
@@ -135,17 +135,17 @@ Conventions:
   - README usage examples
   - `docs/PROPOSED-CONTRACT.md` (if we treat it as the source of truth)
 
-### B-011) Doc alignment (v2↔v3 consistency sweep)
+### B-011) Doc alignment (legacy↔current consistency sweep)
 
 - Status: Done
-- Why: During migration we will temporarily have v2 and v3 docs side-by-side; we need one pass to ensure readers don’t get conflicting instructions.
+- Why: During migration we will temporarily have legacy and current docs side-by-side; we need one pass to ensure readers don’t get conflicting instructions.
 - Scope:
-  - Ensure all docs clearly label whether they apply to v2 vs v3.
+  - Ensure all docs clearly label whether they apply to legacy vs current.
   - Ensure all references to registry paths are correct (`runs.jsonl` vs `registry.json`).
   - Ensure examples match the chosen flags and semantics (`--wait-terminal`, `--timeout`, cancel strictness).
-  - Ensure the v3 draft in `docs/SKILL-V3-READY.md` matches the intended replacement behavior for `.claude/skills/opencode-subagent/SKILL.md`.
+  - Ensure the draft skill doc matches the intended replacement behavior for `.claude/skills/opencode-subagent/SKILL.md`.
 - Acceptance:
-  - “Single source of truth” is explicit (either `.claude/skills/opencode-subagent/SKILL.md` or `docs/SKILL-V3-READY.md` during the transition).
+  - “Single source of truth” is explicit (either `.claude/skills/opencode-subagent/SKILL.md` or a draft skill doc during the transition).
   - No doc instructs a command/path combination that can’t work in the targeted version.
 
 ### B-012) Post-fix manual validation (O04/O07)

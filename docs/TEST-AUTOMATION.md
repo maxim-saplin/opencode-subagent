@@ -1,4 +1,4 @@
-# Test Automation Plan (v3)
+# Test Automation Plan
 
 This document is the single source of truth for automated test coverage and expectations.
 Manual QA scenarios live in docs/TEST-CASES-MANUAL.md.

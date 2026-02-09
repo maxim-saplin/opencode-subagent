@@ -25,6 +25,41 @@ const USAGE_RETRY_MAX_MS = 60000;
 const USAGE_LOG_MAX_BYTES = 1024 * 1024;
 const USAGE_LOG_TAIL_LINES = 200;
 
+function parseMajorVersion(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return Math.trunc(value);
+  if (typeof value !== "string") return null;
+  const match = value.trim().match(/^(\d+)/);
+  if (!match) return null;
+  const num = Number(match[1]);
+  return Number.isFinite(num) ? Math.trunc(num) : null;
+}
+
+function readContractVersion() {
+  const candidates = [
+    path.resolve(__dirname, "../../../../package.json"),
+    path.resolve(process.cwd(), "package.json"),
+  ];
+
+  for (const file of candidates) {
+    try {
+      const text = fs.readFileSync(file, "utf8");
+      const json = JSON.parse(text);
+      if (!json || typeof json !== "object") continue;
+      const version = parseMajorVersion(json.version);
+      if (version !== null && version > 0) return version;
+    } catch {
+      // ignore missing or invalid package.json
+    }
+  }
+
+  fail("Missing package.json version", "E_VERSION_MISSING", {
+    hint: "Set package.json version (e.g., 4.0.0) to define the contract major.",
+  });
+  return 0;
+}
+
+const CONTRACT_VERSION = readContractVersion();
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -128,10 +163,10 @@ async function readRegistry(root) {
     const data = JSON.parse(text);
     if (!data || typeof data !== "object") throw new Error("bad registry");
     if (!data.agents || typeof data.agents !== "object") data.agents = {};
-    if (!data.version) data.version = 3;
+    if (!data.version) data.version = CONTRACT_VERSION;
     return data;
   } catch {
-    return { version: 3, agents: {} };
+    return { version: CONTRACT_VERSION, agents: {} };
   }
 }
 

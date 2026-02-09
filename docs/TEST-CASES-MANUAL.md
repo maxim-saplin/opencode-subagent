@@ -1,6 +1,6 @@
 # Manual Orchestrator QA Scenarios
 
-Note: This document targets the v3 implementation (Node CLI + `registry.json`) and includes the status daemon and usage cache.
+Note: This document targets the current implementation (Node CLI + `registry.json`) and includes the status daemon and usage cache.
 
 These scenarios are executed by an orchestrator (the QA model) to validate end-to-end behavior. They focus on **real, self-contained tasks** inside this repo and verify that spawned agents perform work and return results.
 
@@ -10,7 +10,7 @@ These scenarios are executed by an orchestrator (the QA model) to validate end-t
 - Ensure the skill scripts are available in this repo.
 - Provide a working model via `OPENCODE_PSA_MODEL` (unless you are using a mock `opencode`).
 - Use a stable working directory for state, e.g. `.tmp/opencode-psa`.
-- Clear prior state when needed: remove `.tmp/opencode-psa/.opencode-subagent/runs.jsonl` (v2) or `.tmp/opencode-psa/.opencode-subagent/registry.json` (v3).
+- Clear prior state when needed: remove `.tmp/opencode-psa/.opencode-subagent/runs.jsonl` (legacy JSONL) or `.tmp/opencode-psa/.opencode-subagent/registry.json` (current).
 
 ## Toy Task Catalog (Self-Contained)
 

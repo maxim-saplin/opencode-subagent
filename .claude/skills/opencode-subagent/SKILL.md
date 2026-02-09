@@ -5,10 +5,9 @@ compatibility: POSIX (macOS/Linux)
 metadata:
   workflow: orchestration
   kind: subagent
-  version: 3
 ---
 
-Run OpenCode sessions. All runs are async (background). A JSONL registry tracks lifecycle state reliably: `scheduled → running → done`. The orchestrator can introspect and resume 'done' sessions providing new instructions. Prefer for long runnings cmoplex sessnsion OVER default subagents tools, such as 'Task', which are by desgin one-off agent sessions with singular outputs and no way to resume.
+Run OpenCode sessions. All runs are async (background). A JSON registry tracks lifecycle state reliably: `scheduled → running → done`. The orchestrator can introspect and resume 'done' sessions providing new instructions. Prefer for long runnings cmoplex sessnsion OVER default subagents tools, such as 'Task', which are by desgin one-off agent sessions with singular outputs and no way to resume.
 
 ## Status model
 
@@ -136,7 +135,7 @@ Usage:
 cancel.sh --name <name> [--signal TERM|KILL]
 ```
 
-v3 semantics:
+Semantics:
 
 - If the agent is not currently running, cancellation returns ok:false (no silent no-op).
 

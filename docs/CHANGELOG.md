@@ -6,7 +6,7 @@
 - Split user-facing dashboard into `status_watch.sh`.
 - Minimized `status` output to essential fields (no prompt/stderr/sessionId).
 - Removed `--json` from `status`, `search`, and `cancel` (always JSON).
-- Updated deterministic tests and docs to match the v3 contract.
+- Updated deterministic tests and docs to match the v4 contract.
 
 ## 0.3.0 (v4)
 

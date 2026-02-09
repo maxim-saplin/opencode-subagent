@@ -9,6 +9,15 @@ import { cleanupTempDirs } from "./helpers/cleanup";
 const exec = promisify(execFile);
 const ROOT = path.resolve(__dirname, "../..");
 
+async function readContractMajor() {
+  const text = await fs.readFile(path.join(ROOT, "package.json"), "utf8");
+  const json = JSON.parse(text);
+  const match = String(json && json.version ? json.version : "").match(/^(\d+)/);
+  const major = match ? Number(match[1]) : NaN;
+  if (!Number.isFinite(major) || major <= 0) throw new Error("Invalid package.json version");
+  return Math.trunc(major);
+}
+
 afterAll(cleanupTempDirs);
 
 const RUN = scriptPath("run_subagent.sh");
@@ -99,7 +108,7 @@ describe("result.sh behavior", () => {
 
     const registryPath = path.join(cwd, ".opencode-subagent", "registry.json");
     const record = {
-      version: 3,
+      version: await readContractMajor(),
       agents: {
         "missing-session": {
           name: "missing-session",

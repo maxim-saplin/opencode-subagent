@@ -1,4 +1,4 @@
-# OpenCode Persistent Subagent Skill (v3)
+# OpenCode Persistent Subagent Skill
 
 This skill lets you run named, persistent OpenCode subagents that you can resume later. You get simple commands to start, check status, fetch the latest answer, search history, and cancel runs—without losing the session thread.
 
@@ -13,7 +13,7 @@ Quick start:
 
 ## Files
 
-- `.claude/skills/opencode-subagent/SKILL.md` — the OpenCode skill definition (v3)
+- `.claude/skills/opencode-subagent/SKILL.md` — the OpenCode skill definition
 - `.claude/skills/opencode-subagent/scripts/` — helper scripts used by the skill
 
 ---
