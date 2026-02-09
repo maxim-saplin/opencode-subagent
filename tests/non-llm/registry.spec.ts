@@ -16,6 +16,7 @@ const RUN = scriptPath("run_subagent.sh");
 describe("registry mechanics", () => {
   it("rejects duplicate names", async () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "registry-dedupe");
+    await fs.rm(cwd, { recursive: true, force: true });
     await fs.mkdir(cwd, { recursive: true });
 
     await exec(RUN, [
@@ -45,6 +46,7 @@ describe("registry mechanics", () => {
 
   it("registry.json stores latest by name", async () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "registry-lines");
+    await fs.rm(cwd, { recursive: true, force: true });
     await fs.mkdir(cwd, { recursive: true });
 
     await exec(RUN, [
@@ -64,6 +66,7 @@ describe("registry mechanics", () => {
 
   it("handles concurrent registry writes", async () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "registry-concurrent");
+    await fs.rm(cwd, { recursive: true, force: true });
     await fs.mkdir(cwd, { recursive: true });
 
     const names = Array.from({ length: 6 }, (_, i) => `concurrent-${i + 1}`);

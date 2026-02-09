@@ -17,6 +17,7 @@ const STATUS = scriptPath("status.sh");
 describe("status.sh basic list after scheduled", () => {
   it("shows the agent in the list", { timeout: 20000 }, async () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "status-basic");
+    await fs.rm(cwd, { recursive: true, force: true });
     await fs.mkdir(cwd, { recursive: true });
 
     const run = await exec(SKILL_RUN, [
@@ -34,7 +35,7 @@ describe("status.sh basic list after scheduled", () => {
     expect(json.ok).toBe(true);
     expect(json.name).toBe("status-basic-agent");
 
-    const { stdout } = await exec(STATUS, ["--json", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
+    const { stdout } = await exec(STATUS, ["--cwd", cwd], { cwd, env: mockEnv(cwd) });
     const compact = stdout.replace(/\r?\n/g, "");
     const statusJson = JSON.parse(compact);
     const names = (statusJson.agents || []).map((a: any) => a.name);

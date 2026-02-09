@@ -140,7 +140,7 @@ review/feature-x          done     12340   18   1800    0.9%
   - Manual QA scenario (Scenario 10).
 
 ## Test Traceability
-- Plan coverage lives in [docs/TEST-AUTOMATION.md](docs/TEST-AUTOMATION.md), [docs/TEST-CASES-MANUAL.md](docs/TEST-CASES-MANUAL.md), and [tests/TEST-CASES.md](tests/TEST-CASES.md).
+- Plan coverage lives in [docs/TEST-AUTOMATION.md](docs/TEST-AUTOMATION.md) and [docs/TEST-CASES-MANUAL.md](docs/TEST-CASES-MANUAL.md).
 - WBS mapping to tests:
   - Registry schema + status output → D03, D04, L11.
   - Daemon lifecycle → D01, D02.

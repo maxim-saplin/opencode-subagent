@@ -71,20 +71,19 @@ describe("orchestrator scenarios (deterministic)", () => {
 
     await exec(RUN, ["--name", "a04/long", "--prompt", "MOCK:SLEEP:10 MOCK:REPLY:LONG", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
     for (let i = 0; i < 50; i += 1) {
-      const status = await exec(STATUS, ["--name", "a04/long", "--json", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
+      const status = await exec(STATUS, ["--name", "a04/long", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
       const statusJson = JSON.parse(String(status.stdout ?? "").trim());
       const agent = statusJson.agents?.[0];
       if (agent && agent.status === "running") break;
       await new Promise((r) => setTimeout(r, 100));
     }
-    await exec(CANCEL, ["--name", "a04/long", "--cwd", cwd, "--json"], { cwd, env: mockEnv(cwd) });
+    await exec(CANCEL, ["--name", "a04/long", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
     const { stdout } = await exec(STATUS, [
       "--name",
       "a04/long",
       "--wait-terminal",
       "--timeout",
       "5",
-      "--json",
       "--cwd",
       cwd,
     ], { cwd, env: mockEnv(cwd) });
@@ -179,7 +178,7 @@ describe("orchestrator scenarios (deterministic)", () => {
     await exec(RUN, ["--name", "a08/resume", "--prompt", "MOCK:REPLY:RESUME_OK", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
     await waitDone(cwd, "a08/resume");
 
-    const status = await exec(STATUS, ["--name", "a08/resume", "--json", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
+    const status = await exec(STATUS, ["--name", "a08/resume", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
     expect(JSON.parse(String(status.stdout ?? "").trim()).agents.length).toBe(1);
 
     await exec(RUN, ["--name", "a08/resume", "--resume", "--prompt", "MOCK:REPLY:RESUME_CONTINUE_OK", "--cwd", cwd], { cwd, env: mockEnv(cwd) });

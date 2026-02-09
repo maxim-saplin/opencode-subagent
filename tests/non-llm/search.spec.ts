@@ -18,6 +18,7 @@ const SEARCH = scriptPath("search.sh");
 describe("search.sh behavior", () => {
   it("finds assistant matches", async () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "search-ok");
+    await fs.rm(cwd, { recursive: true, force: true });
     await fs.mkdir(cwd, { recursive: true });
 
     await exec(RUN, [
@@ -40,7 +41,6 @@ describe("search.sh behavior", () => {
       "assistant",
       "--cwd",
       cwd,
-      "--json",
     ], { cwd, env: mockEnv(cwd) });
 
     const json = JSON.parse(String(stdout ?? "").trim());
@@ -50,6 +50,7 @@ describe("search.sh behavior", () => {
 
   it("errors when pattern missing", async () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "search-missing");
+    await fs.rm(cwd, { recursive: true, force: true });
     await fs.mkdir(cwd, { recursive: true });
 
     const res = await exec(SEARCH, [
@@ -57,7 +58,6 @@ describe("search.sh behavior", () => {
       "search-missing",
       "--cwd",
       cwd,
-      "--json",
     ], { cwd, env: mockEnv(cwd) }).catch((err: unknown) => err);
 
     const stdout = (res as { stdout?: string }).stdout ?? "";

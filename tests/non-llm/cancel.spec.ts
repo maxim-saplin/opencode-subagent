@@ -30,14 +30,14 @@ describe("cancel.sh behavior", () => {
     ], { cwd, env: mockEnv(cwd) });
 
     for (let i = 0; i < 50; i += 1) {
-      const { stdout } = await exec(STATUS, ["--name", "cancel-agent", "--json", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
+      const { stdout } = await exec(STATUS, ["--name", "cancel-agent", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
       const statusJson = JSON.parse(String(stdout ?? "").trim());
       const agent = statusJson.agents?.[0];
       if (agent && agent.status === "running") break;
       await new Promise((r) => setTimeout(r, 100));
     }
 
-    const { stdout } = await exec(CANCEL, ["--name", "cancel-agent", "--cwd", cwd, "--json"], { cwd, env: mockEnv(cwd) });
+    const { stdout } = await exec(CANCEL, ["--name", "cancel-agent", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
     const json = JSON.parse(String(stdout ?? "").trim());
     expect(json.ok).toBe(true);
   });
@@ -56,14 +56,14 @@ describe("cancel.sh behavior", () => {
     ], { cwd, env: mockEnv(cwd) });
 
     for (let i = 0; i < 20; i += 1) {
-      const { stdout } = await exec(STATUS, ["--name", "cancel-done-agent", "--json", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
+      const { stdout } = await exec(STATUS, ["--name", "cancel-done-agent", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
       const statusJson = JSON.parse(String(stdout ?? "").trim());
       const agent = statusJson.agents?.[0];
       if (agent && agent.status === "done") break;
       await new Promise((r) => setTimeout(r, 100));
     }
 
-    const res = await exec(CANCEL, ["--name", "cancel-done-agent", "--cwd", cwd, "--json"], { cwd, env: mockEnv(cwd) }).catch((err: unknown) => err);
+    const res = await exec(CANCEL, ["--name", "cancel-done-agent", "--cwd", cwd], { cwd, env: mockEnv(cwd) }).catch((err: unknown) => err);
     const stdout = (res as { stdout?: string }).stdout ?? "";
     const json = JSON.parse(String(stdout ?? "").trim());
     expect(json.ok).toBe(false);
@@ -73,7 +73,7 @@ describe("cancel.sh behavior", () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "cancel-missing");
     await fs.mkdir(cwd, { recursive: true });
 
-    const res = await exec(CANCEL, ["--name", "missing", "--cwd", cwd, "--json"], { cwd, env: mockEnv(cwd) }).catch((err: unknown) => err);
+    const res = await exec(CANCEL, ["--name", "missing", "--cwd", cwd], { cwd, env: mockEnv(cwd) }).catch((err: unknown) => err);
     const stdout = (res as { stdout?: string }).stdout ?? "";
     const json = JSON.parse(String(stdout ?? "").trim());
     expect(json.ok).toBe(false);

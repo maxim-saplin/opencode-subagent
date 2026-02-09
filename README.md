@@ -4,9 +4,9 @@ This skill lets you run named, persistent OpenCode subagents that you can resume
 
 Quick start:
 - Start: `run_subagent.sh --name <name> --prompt <text>`
-- Check: `status.sh --json`
+- Check: `status.sh`
 - Result: `result.sh --name <name>`
-- Wait for done: `status.sh --name <name> --wait-terminal --timeout 60 --json`
+- Wait for done: `status.sh --name <name> --wait-terminal --timeout 60`
 - Wait and fetch: `result.sh --name <name> --wait --timeout 60 --json`
 
 ---
@@ -95,6 +95,12 @@ Search the subagent history (grep-like):
 ./.claude/skills/opencode-subagent/scripts/search.sh \
 	--name "hello" \
 	--pattern "closures|async"
+```
+
+Watch a live ASCII dashboard (user-facing):
+
+```bash
+./.claude/skills/opencode-subagent/scripts/status_watch.sh --cwd .
 ```
 
 ## Notes

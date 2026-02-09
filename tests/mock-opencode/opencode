@@ -85,7 +85,7 @@ function parseModel(model) {
   const fallback = process.env.OPENCODE_PSA_MODEL || "opencode/gpt-5-nano";
   const m = model || fallback;
   const [providerID, modelID] = m.includes("/") ? m.split("/") : ["opencode", m];
-  return { providerID, modelID };
+  return { providerID, modelID, contextWindow: 8192 };
 }
 
 function parseMockDirectives(prompt) {
@@ -137,11 +137,10 @@ async function runCommand(runArgs) {
 
   const { replyToken, sleepSeconds, exitCode, attach } = parseMockDirectives(prompt || "");
 
-  if (sleepSeconds && sleepSeconds > 0) {
-    await new Promise((r) => setTimeout(r, sleepSeconds * 1000));
-  }
-
   if (exitCode !== null) {
+    if (sleepSeconds && sleepSeconds > 0) {
+      await new Promise((r) => setTimeout(r, sleepSeconds * 1000));
+    }
     process.exit(exitCode);
   }
 
@@ -158,11 +157,16 @@ async function runCommand(runArgs) {
 
   sess = loadSession(id);
   sess.updated = nowMs();
+  const tokenCount = Math.max(1, String(reply || "").length);
   sess.messages.push({
-    info: { role: "assistant" },
+    info: { role: "assistant", tokens: { input: tokenCount } },
     parts: [{ type: "text", text: reply }],
   });
   saveSession(sess);
+
+  if (sleepSeconds && sleepSeconds > 0) {
+    await new Promise((r) => setTimeout(r, sleepSeconds * 1000));
+  }
 
   process.exit(0);
 }

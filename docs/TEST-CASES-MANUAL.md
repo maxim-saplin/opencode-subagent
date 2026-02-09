@@ -154,11 +154,11 @@ These are the prompts and fixtures used across scenarios.
 **Goal:** Validate daemon lifecycle, usage cache, and ASCII diagram.
 
 **Steps:**
-1. Run `status.sh --json` before any agents start; confirm no daemon pid in registry.
+1. Run `status.sh` before any agents start; confirm no daemon pid in registry.
 2. Run `usage/live-01` with TT1 token `USAGE_LIVE_OK`.
-3. Poll `status.sh --name usage/live-01 --json` until `usage` appears.
+3. Poll `status.sh --name usage/live-01` until `usage` appears.
 4. Verify `messageCount >= 2` and `dialogTokens > 0`.
-5. Run `status.sh --diagram --watch 2` for ~6 seconds and confirm rows update.
+5. Run `status_watch.sh --cwd .tmp/opencode-psa` for ~6 seconds and confirm rows update.
 6. Wait until the agent reaches `done` and confirm usage remains stable.
 7. Confirm daemon exits once no agents are `scheduled`/`running`.
 

@@ -131,7 +131,7 @@ Query or wait for subagent status changes.
 
 **Usage:**
 ```
-status.sh [--name <name>] [--cwd <dir>] [--wait] [--timeout <seconds>] [--json]
+status.sh [--name <name>] [--cwd <dir>] [--wait] [--timeout <seconds>]
 ```
 
 **Flags:**
@@ -141,9 +141,8 @@ status.sh [--name <name>] [--cwd <dir>] [--wait] [--timeout <seconds>] [--json]
 | `--cwd <dir>`       | No       | Working directory (default: `$PWD`).                     |
 | `--wait`            | No       | Block until any status changes (long-poll mode).         |
 | `--timeout <sec>`   | No       | Max seconds to wait (default: 300, 0 = forever).         |
-| `--json`            | No       | Output as JSON (default for programmatic use).           |
 
-**Output (sync mode, `--json`):**
+**Output (sync mode):**
 ```json
 {
   "ok": true,
@@ -152,7 +151,6 @@ status.sh [--name <name>] [--cwd <dir>] [--wait] [--timeout <seconds>] [--json]
       "name": "auth/refresh-token/fix",
       "pid": 12345,
       "status": "running",
-      "sessionId": "ses_abc123",
       "exitCode": null,
       "startedAt": "2026-01-29T10:00:00Z",
       "updatedAt": "2026-01-29T10:00:05Z",
@@ -162,7 +160,6 @@ status.sh [--name <name>] [--cwd <dir>] [--wait] [--timeout <seconds>] [--json]
       "name": "payments/refactor/plan",
       "pid": 12346,
       "status": "done",
-      "sessionId": "ses_def456",
       "exitCode": 0,
       "startedAt": "2026-01-29T09:55:00Z",
       "updatedAt": "2026-01-29T10:02:00Z",
@@ -172,7 +169,7 @@ status.sh [--name <name>] [--cwd <dir>] [--wait] [--timeout <seconds>] [--json]
 }
 ```
 
-**Output (wait mode, `--wait --json`):**
+**Output (wait mode, `--wait`):**
 
 Returns when any agent's status changes:
 ```json
@@ -184,7 +181,6 @@ Returns when any agent's status changes:
       "previousStatus": "running",
       "status": "done",
       "exitCode": 0,
-      "sessionId": "ses_abc123",
       "finishedAt": "2026-01-29T10:05:00Z"
     }
   ],
@@ -247,15 +243,14 @@ Search session history by regex.
 
 **Usage:**
 ```
-search.sh --name <name> --pattern <regex> [--role any|user|assistant] [--cwd <dir>] [--json]
+search.sh --name <name> --pattern <regex> [--role any|user|assistant] [--cwd <dir>]
 ```
 
-**Output (`--json`):**
+**Output:**
 ```json
 {
   "ok": true,
   "name": "auth/refresh-token/fix",
-  "sessionId": "ses_abc123",
   "matches": [
     { "index": 2, "role": "assistant", "snippet": "...closures are used here..." }
   ]
@@ -270,7 +265,7 @@ Terminate a running subagent.
 
 **Usage:**
 ```
-cancel.sh --name <name> [--cwd <dir>] [--signal <sig>] [--json]
+cancel.sh --name <name> [--cwd <dir>] [--signal <sig>]
 ```
 
 **Flags:**
@@ -279,7 +274,6 @@ cancel.sh --name <name> [--cwd <dir>] [--signal <sig>] [--json]
 | `--name <name>`     | Yes      | Name of the subagent to cancel.                          |
 | `--cwd <dir>`       | No       | Working directory (default: `$PWD`).                     |
 | `--signal <sig>`    | No       | Signal to send (default: `TERM`, options: `KILL`).       |
-| `--json`            | No       | Output as JSON.                                          |
 
 **Output:**
 ```json

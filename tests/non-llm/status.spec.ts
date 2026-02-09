@@ -37,7 +37,7 @@ describe("status.sh behavior", () => {
       cwd,
     ], { cwd, env: mockEnv(cwd) });
 
-    const { stdout } = await exec(STATUS, ["--name", "status-two", "--json", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
+    const { stdout } = await exec(STATUS, ["--name", "status-two", "--cwd", cwd], { cwd, env: mockEnv(cwd) });
     const json = JSON.parse(String(stdout ?? "").trim());
     expect(json.agents.length).toBe(1);
     expect(json.agents[0].name).toBe("status-two");
@@ -62,7 +62,6 @@ describe("status.sh behavior", () => {
       "--wait-terminal",
       "--timeout",
       "10",
-      "--json",
       "--cwd",
       cwd,
     ], { cwd, env: mockEnv(cwd) });

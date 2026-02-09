@@ -1,6 +1,14 @@
 # opencode-subagent
 
-## 0.3.0 (v3)
+## 0.3.1 (v4)
+
+- Added status daemon with cached usage and ASCII dashboard output.
+- Split user-facing dashboard into `status_watch.sh`.
+- Minimized `status` output to essential fields (no prompt/stderr/sessionId).
+- Removed `--json` from `status`, `search`, and `cancel` (always JSON).
+- Updated deterministic tests and docs to match the v3 contract.
+
+## 0.3.0 (v4)
 
 - Node-based CLI with .sh wrappers preserved for compatibility.
 - Atomic mutable registry at .opencode-subagent/registry.json.

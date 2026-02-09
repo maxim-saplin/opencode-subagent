@@ -6,7 +6,7 @@ const exec = promisify(execFile);
 const STATUS = scriptPath("status.sh");
 
 export async function waitForStatusDone(cwd: string, name?: string, timeoutSeconds = 20) {
-  const args = ["--json", "--cwd", cwd];
+  const args = ["--cwd", cwd];
   if (name) args.unshift("--name", name);
   const { stdout } = await exec(STATUS, args, { env: mockEnv(cwd), cwd });
   const json = JSON.parse(String(stdout ?? "").trim() || "{}");
@@ -14,7 +14,7 @@ export async function waitForStatusDone(cwd: string, name?: string, timeoutSecon
   const scoped = name ? agents.filter((a: any) => a.name === name) : agents;
   if (scoped.some((a: any) => a.status === "done")) return;
 
-  const waitArgs = ["--timeout", String(timeoutSeconds), "--json", "--cwd", cwd];
+  const waitArgs = ["--timeout", String(timeoutSeconds), "--cwd", cwd];
   if (name) {
     waitArgs.unshift("--name", name);
     waitArgs.unshift("--wait-terminal");

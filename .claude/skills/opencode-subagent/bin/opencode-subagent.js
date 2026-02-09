@@ -3,6 +3,7 @@
 const fs = require("fs");
 const fsp = require("fs/promises");
 const path = require("path");
+const readline = require("readline");
 const { spawn, execFile } = require("child_process");
 const { promisify } = require("util");
 const { setTimeout: delay } = require("timers/promises");
@@ -17,9 +18,38 @@ const DEFAULT_WAIT_TIMEOUT_SEC = 300;
 const EXPORT_TIMEOUT_MS = 15000;
 const LOCK_TIMEOUT_MS = 5000;
 const LOCK_RETRY_MS = 50;
+const USAGE_DAEMON_INTERVAL_MS = 1000;
+const USAGE_RUNNING_REFRESH_MS = 5000;
+const USAGE_RETRY_BASE_MS = 2000;
+const USAGE_RETRY_MAX_MS = 60000;
+const USAGE_LOG_MAX_BYTES = 1024 * 1024;
+const USAGE_LOG_TAIL_LINES = 200;
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function parseTimeMs(value) {
+  if (!value || typeof value !== "string") return null;
+  const ts = Date.parse(value);
+  return Number.isFinite(ts) ? ts : null;
+}
+
+function coerceFiniteNumber(value) {
+  if (value === null || value === undefined) return null;
+  const num = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function isPidAlive(pid) {
+  const num = Number(pid);
+  if (!Number.isFinite(num) || num <= 0) return false;
+  try {
+    process.kill(num, 0);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function registryDir(root) {
@@ -32,6 +62,10 @@ function registryPath(root) {
 
 function lockPath(root) {
   return path.join(registryDir(root), "registry.lock");
+}
+
+function usageLogPath(root) {
+  return path.join(registryDir(root), "usage-export.log");
 }
 
 function printJson(obj) {
@@ -194,17 +228,8 @@ async function refreshRegistry(root, names) {
       const status = record.status;
       if (status === "scheduled" || status === "running") {
         const pid = Number(record.pid);
-        let alive = false;
-        let pidValid = false;
-        if (Number.isFinite(pid) && pid > 0) {
-          pidValid = true;
-          try {
-            process.kill(pid, 0);
-            alive = true;
-          } catch {
-            alive = false;
-          }
-        }
+        const pidValid = Number.isFinite(pid) && pid > 0;
+        const alive = pidValid ? isPidAlive(pid) : false;
         if (alive) {
           if (status !== "running") {
             record.status = "running";
@@ -244,6 +269,21 @@ function agentsArray(registry, nameFilter) {
   return arr;
 }
 
+function sanitizeAgentForStatus(record) {
+  if (!record || typeof record !== "object") return record;
+  const out = {
+    name: record.name ?? null,
+    status: record.status ?? null,
+    pid: record.pid ?? null,
+    exitCode: record.exitCode ?? null,
+    startedAt: record.startedAt ?? null,
+    updatedAt: record.updatedAt ?? null,
+    finishedAt: record.finishedAt ?? null,
+  };
+  if (record.usage !== undefined) out.usage = record.usage;
+  return out;
+}
+
 function diffStatuses(prevAgents, nextAgents) {
   const byName = (arr) => {
     const map = new Map();
@@ -263,7 +303,6 @@ function diffStatuses(prevAgents, nextAgents) {
         previousStatus: before ? before.status : null,
         status: curr.status,
         exitCode: curr.exitCode ?? null,
-        sessionId: curr.sessionId ?? null,
         finishedAt: curr.finishedAt ?? null,
       });
     }
@@ -460,6 +499,280 @@ function extractJsonSubstring(text) {
   return "";
 }
 
+async function exportSessionJson(sessionId, cwd) {
+  const res = await execFileAsync("opencode", ["export", sessionId], {
+    cwd,
+    timeout: EXPORT_TIMEOUT_MS,
+    maxBuffer: EXEC_MAX_BUFFER,
+  });
+  const stdout = String(res.stdout || "");
+  const idx = stdout.search(/[\{\[]/);
+  if (idx === -1) throw new Error("No JSON found in export output");
+  const jsonText = extractJsonSubstring(stdout);
+  if (!jsonText) throw new Error("No complete JSON value found in export output");
+  return JSON.parse(jsonText);
+}
+
+function extractDialogTokens(messages) {
+  if (!Array.isArray(messages)) return null;
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const m = messages[i];
+    if (!m || typeof m !== "object") continue;
+    const role = (m.info && typeof m.info === "object" ? m.info.role : m.role) || "";
+    if (role !== "assistant") continue;
+    const info = m.info && typeof m.info === "object" ? m.info : null;
+    const infoTokens = info && typeof info.tokens === "object" ? info.tokens : null;
+    const directTokens = m.tokens && typeof m.tokens === "object" ? m.tokens : null;
+    const input = coerceFiniteNumber(infoTokens ? infoTokens.input : directTokens ? directTokens.input : null);
+    if (input !== null) return input;
+  }
+  return null;
+}
+
+function extractContextWindow(exportData) {
+  if (!exportData || typeof exportData !== "object") return null;
+  const info = exportData.info && typeof exportData.info === "object" ? exportData.info : null;
+  const model = info && typeof info.model === "object" ? info.model : exportData.model && typeof exportData.model === "object" ? exportData.model : null;
+  if (!model) return null;
+  const value = model.contextWindow ?? model.context ?? model.context_window ?? null;
+  return coerceFiniteNumber(value);
+}
+
+function buildUsage(exportData) {
+  const messages = exportData && Array.isArray(exportData.messages) ? exportData.messages : [];
+  const messageCount = messages.length;
+  const dialogTokens = extractDialogTokens(messages);
+  const contextWindow = extractContextWindow(exportData);
+  const contextFullPct = dialogTokens !== null && contextWindow !== null && contextWindow > 0
+    ? dialogTokens / contextWindow
+    : null;
+  return { messageCount, dialogTokens, contextFullPct };
+}
+
+async function appendUsageLog(root, entry) {
+  const dir = registryDir(root);
+  await fsp.mkdir(dir, { recursive: true });
+  const file = usageLogPath(root);
+  const line = `${JSON.stringify(entry)}\n`;
+  await fsp.appendFile(file, line, "utf8");
+  try {
+    const stat = await fsp.stat(file);
+    if (stat.size <= USAGE_LOG_MAX_BYTES) return;
+    const content = await fsp.readFile(file, "utf8");
+    const lines = content.trim().split(/\r?\n/).filter(Boolean);
+    const tail = lines.slice(-USAGE_LOG_TAIL_LINES);
+    await fsp.writeFile(file, `${tail.join("\n")}\n`, "utf8");
+  } catch {
+    // ignore log rotation failures
+  }
+}
+
+function shouldRefreshUsage(record, nowMs) {
+  if (!record || typeof record !== "object") return false;
+  if (!record.sessionId) return false;
+  if (record.status !== "running" && record.status !== "done" && record.status !== "unknown") return false;
+
+  const retryAtMs = parseTimeMs(record.usageRetryAt);
+  if (retryAtMs !== null && nowMs < retryAtMs) return false;
+
+  const updatedMs = parseTimeMs(record.usageUpdatedAt);
+  if (record.status === "running") {
+    if (updatedMs === null) return true;
+    return nowMs - updatedMs >= USAGE_RUNNING_REFRESH_MS;
+  }
+
+  if (updatedMs === null) return true;
+  const finishedMs = parseTimeMs(record.finishedAt);
+  if (finishedMs !== null && updatedMs < finishedMs) return true;
+  return false;
+}
+
+async function updateAgentUsage(root, name, updater) {
+  return withRegistryLock(root, async () => {
+    const registry = await readRegistry(root);
+    const record = registry.agents && registry.agents[name];
+    if (!record) return null;
+    const next = updater(record);
+    if (!next) return null;
+    registry.agents[name] = next;
+    registry.updatedAt = nowIso();
+    await writeRegistryAtomic(root, registry);
+    return next;
+  });
+}
+
+async function ensureDaemon(root) {
+  return withRegistryLock(root, async () => {
+    const registry = await readRegistry(root);
+    const daemon = registry.daemon && typeof registry.daemon === "object" ? registry.daemon : null;
+    if (daemon && daemon.pid && isPidAlive(daemon.pid)) return daemon;
+
+    const child = spawn(process.execPath, [__filename, "status-daemon"], {
+      cwd: root,
+      detached: true,
+      stdio: "ignore",
+    });
+    child.unref();
+    registry.daemon = { pid: child.pid, startedAt: nowIso(), lastHeartbeatAt: nowIso() };
+    await writeRegistryAtomic(root, registry);
+    return registry.daemon;
+  });
+}
+
+function formatTimestamp(value) {
+  const ms = parseTimeMs(value);
+  if (ms === null) return "-";
+  return new Date(ms).toISOString().replace("T", " ").slice(0, 19);
+}
+
+function formatDuration(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return "-";
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function renderTable(rows, columns) {
+  const widths = columns.map((col) => {
+    const headerLen = col.header.length;
+    const maxCell = rows.reduce((max, row) => Math.max(max, String(row[col.key] ?? "").length), 0);
+    return Math.max(headerLen, maxCell);
+  });
+
+  const pad = (value, width) => String(value).padEnd(width);
+  const padLeft = (value, width) => String(value).padStart(width);
+
+  const header = columns
+    .map((col, idx) => (col.align === "right" ? padLeft(col.header, widths[idx]) : pad(col.header, widths[idx])))
+    .join("  ");
+
+  const body = rows.map((row) =>
+    columns
+      .map((col, idx) => {
+        const value = row[col.key] ?? "";
+        return col.align === "right" ? padLeft(value, widths[idx]) : pad(value, widths[idx]);
+      })
+      .join("  ")
+  );
+
+  return [header, ...body].join("\n");
+}
+
+function renderDiagram(agents, nowMs) {
+  const allAgents = Array.isArray(agents) ? agents : [];
+  const liveAgents = allAgents.filter((agent) => agent && (agent.status === "running" || agent.status === "scheduled"));
+  const doneAgents = allAgents.filter((agent) => agent && (agent.status === "done" || agent.status === "unknown"));
+
+  const toUsageColumns = (agent) => {
+    const usage = agent && agent.usage && typeof agent.usage === "object" ? agent.usage : null;
+    const messageCount = usage && Number.isFinite(usage.messageCount) ? String(usage.messageCount) : "-";
+    const dialogTokens = usage && Number.isFinite(usage.dialogTokens) ? String(usage.dialogTokens) : "-";
+    const pct = usage && Number.isFinite(usage.contextFullPct) ? `${(usage.contextFullPct * 100).toFixed(1)}%` : "-";
+    return { messageCount, dialogTokens, pct };
+  };
+
+  const liveRows = liveAgents.map((agent) => {
+    const startedAt = formatTimestamp(agent.startedAt);
+    const runtimeMs = parseTimeMs(agent.startedAt);
+    const runtime = runtimeMs === null ? "-" : formatDuration(nowMs - runtimeMs);
+    const { messageCount, dialogTokens, pct } = toUsageColumns(agent);
+    return {
+      name: agent && agent.name ? String(agent.name) : "",
+      status: agent && agent.status ? String(agent.status) : "",
+      pid: agent && agent.pid ? String(agent.pid) : "-",
+      startedAt,
+      runtime,
+      messageCount,
+      dialogTokens,
+      pct,
+    };
+  });
+
+  const doneRows = doneAgents.map((agent) => {
+    const startedAt = formatTimestamp(agent.startedAt);
+    const finishedAt = formatTimestamp(agent.finishedAt);
+    const startMs = parseTimeMs(agent.startedAt);
+    const endMs = parseTimeMs(agent.finishedAt);
+    const runtime = startMs === null || endMs === null ? "-" : formatDuration(endMs - startMs);
+    const { messageCount, dialogTokens, pct } = toUsageColumns(agent);
+    return {
+      name: agent && agent.name ? String(agent.name) : "",
+      status: agent && agent.status ? String(agent.status) : "",
+      pid: agent && agent.pid ? String(agent.pid) : "-",
+      startedAt,
+      finishedAt,
+      runtime,
+      messageCount,
+      dialogTokens,
+      pct,
+    };
+  });
+
+  const lines = [];
+  lines.push("LIVE AGENTS");
+  if (liveRows.length === 0) {
+    lines.push("No agents are running.");
+  } else {
+    lines.push(
+      renderTable(liveRows, [
+        { header: "NAME", key: "name" },
+        { header: "STATUS", key: "status" },
+        { header: "PID", key: "pid", align: "right" },
+        { header: "STARTED", key: "startedAt" },
+        { header: "RUNTIME", key: "runtime", align: "right" },
+        { header: "MSG", key: "messageCount", align: "right" },
+        { header: "DIALOG", key: "dialogTokens", align: "right" },
+        { header: "FULL", key: "pct", align: "right" },
+      ])
+    );
+  }
+
+  lines.push("");
+  lines.push("DONE AGENTS");
+  if (doneRows.length === 0) {
+    lines.push("No completed agents.");
+  } else {
+    lines.push(
+      renderTable(doneRows, [
+        { header: "NAME", key: "name" },
+        { header: "STATUS", key: "status" },
+        { header: "PID", key: "pid", align: "right" },
+        { header: "STARTED", key: "startedAt" },
+        { header: "COMPLETED", key: "finishedAt" },
+        { header: "RUNTIME", key: "runtime", align: "right" },
+        { header: "MSG", key: "messageCount", align: "right" },
+        { header: "DIALOG", key: "dialogTokens", align: "right" },
+        { header: "FULL", key: "pct", align: "right" },
+      ])
+    );
+  }
+
+  return lines.join("\n");
+}
+
+function clearDiagramScreen() {
+  if (process.stdout.isTTY) {
+    readline.cursorTo(process.stdout, 0, 0);
+    readline.clearScreenDown(process.stdout);
+    return;
+  }
+  process.stdout.write("\x1b[2J\x1b[H");
+}
+
+function hideCursor() {
+  if (process.stdout.isTTY) {
+    process.stdout.write("\x1b[?25l");
+  }
+}
+
+function showCursor() {
+  if (process.stdout.isTTY) {
+    process.stdout.write("\x1b[?25h");
+  }
+}
+
 function searchHistory(data, pattern, role) {
   const rx = new RegExp(pattern);
   const matches = [];
@@ -620,6 +933,12 @@ async function runCommand(argv) {
 
   await upsertAgent(registryRoot, scheduledRecord);
 
+  try {
+    await ensureDaemon(registryRoot);
+  } catch {
+    // daemon is best-effort; do not block agent start
+  }
+
   const payload = {
     name,
     prompt,
@@ -771,12 +1090,99 @@ async function runWorker() {
   process.exit(0);
 }
 
+async function statusDaemon() {
+  requireCommand("opencode");
+  const registryRoot = process.cwd();
+
+  while (true) {
+    const registry = await refreshRegistry(registryRoot, null);
+    const agents = agentsArray(registry, null);
+    const daemon = registry.daemon && typeof registry.daemon === "object" ? registry.daemon : null;
+    if (daemon && daemon.pid && daemon.pid !== process.pid && isPidAlive(daemon.pid)) {
+      return;
+    }
+
+    const hasActive = agents.some((agent) => agent && (agent.status === "scheduled" || agent.status === "running"));
+
+    await withRegistryLock(registryRoot, async () => {
+      const latest = await readRegistry(registryRoot);
+      const startedAt = latest.daemon && latest.daemon.startedAt ? latest.daemon.startedAt : nowIso();
+      latest.daemon = { pid: process.pid, startedAt, lastHeartbeatAt: nowIso() };
+      latest.updatedAt = nowIso();
+      await writeRegistryAtomic(registryRoot, latest);
+    });
+
+    const nowMs = Date.now();
+    for (const agent of agents) {
+      if (!shouldRefreshUsage(agent, nowMs)) continue;
+      const name = agent.name;
+      const sessionId = agent.sessionId;
+      if (!name || !sessionId) continue;
+      const targetCwd = agent.cwd || registryRoot;
+
+      try {
+        const exportData = await exportSessionJson(sessionId, targetCwd);
+        const usage = buildUsage(exportData);
+        await updateAgentUsage(registryRoot, name, (record) => {
+          if (!record || record.sessionId !== sessionId) return null;
+          return {
+            ...record,
+            usage,
+            usageUpdatedAt: nowIso(),
+            usageRetryAt: null,
+            usageAttempt: null,
+            usageError: null,
+          };
+        });
+      } catch (err) {
+        const attempt = (agent.usageAttempt || 0) + 1;
+        const delayMs = Math.min(USAGE_RETRY_MAX_MS, USAGE_RETRY_BASE_MS * 2 ** Math.max(0, attempt - 1));
+        const retryAt = new Date(Date.now() + delayMs).toISOString();
+        const message = err && err.message ? err.message : String(err);
+        await appendUsageLog(registryRoot, {
+          time: nowIso(),
+          name,
+          sessionId,
+          error: message,
+          attempt,
+          retryAt,
+        });
+        await updateAgentUsage(registryRoot, name, (record) => {
+          if (!record || record.sessionId !== sessionId) return null;
+          return {
+            ...record,
+            usageRetryAt: retryAt,
+            usageAttempt: attempt,
+            usageError: message,
+          };
+        });
+      }
+    }
+
+    if (!hasActive) {
+      await withRegistryLock(registryRoot, async () => {
+        const latest = await readRegistry(registryRoot);
+        if (latest.daemon) {
+          delete latest.daemon;
+          latest.updatedAt = nowIso();
+          await writeRegistryAtomic(registryRoot, latest);
+        }
+      });
+      return;
+    }
+
+    await delay(USAGE_DAEMON_INTERVAL_MS);
+  }
+}
+
 async function statusCommand(argv) {
   let name = "";
   let cwdInput = process.cwd();
   let wait = false;
   let waitTerminal = false;
   let timeoutSec = DEFAULT_WAIT_TIMEOUT_SEC;
+  let diagram = false;
+  let watchSec = 0;
 
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
@@ -795,12 +1201,21 @@ async function statusCommand(argv) {
       case "--wait-terminal":
         waitTerminal = true;
         break;
+      case "--diagram":
+        diagram = true;
+        break;
+      case "--watch":
+        watchSec = Number(argv[i + 1]);
+        if (!Number.isFinite(watchSec) || watchSec <= 0) {
+          fail("Invalid --watch", "E_WATCH_INVALID", { value: argv[i + 1] });
+        }
+        diagram = true;
+        i += 1;
+        break;
       case "--timeout":
         timeoutSec = Number(argv[i + 1]);
         if (!Number.isFinite(timeoutSec)) timeoutSec = DEFAULT_WAIT_TIMEOUT_SEC;
         i += 1;
-        break;
-      case "--json":
         break;
       default:
         fail("Unknown argument", "E_ARG_UNKNOWN", { arg: a });
@@ -813,15 +1228,48 @@ async function statusCommand(argv) {
 
   const registryRoot = process.cwd();
 
+  if (diagram) {
+    try {
+      await ensureDaemon(registryRoot);
+    } catch {
+      // diagram rendering should not fail if daemon cannot start
+    }
+
+    const watchMs = watchSec > 0 ? watchSec * 1000 : 0;
+    if (watchMs > 0) {
+      hideCursor();
+      const restore = () => showCursor();
+      process.once("exit", restore);
+      process.once("SIGINT", () => {
+        restore();
+        process.exit(130);
+      });
+      process.once("SIGTERM", () => {
+        restore();
+        process.exit(143);
+      });
+    }
+    while (true) {
+      const registry = await refreshRegistry(registryRoot, name ? [name] : null);
+      const agents = agentsArray(registry, name).map(sanitizeAgentForStatus);
+      if (watchMs > 0) {
+        clearDiagramScreen();
+      }
+      process.stdout.write(`${renderDiagram(agents, Date.now())}\n`);
+      if (watchMs === 0) return;
+      await delay(watchMs);
+    }
+  }
+
   if (!wait && !waitTerminal) {
     const registry = await refreshRegistry(registryRoot, name ? [name] : null);
-    printJson({ ok: true, agents: agentsArray(registry, name) });
+    printJson({ ok: true, agents: agentsArray(registry, name).map(sanitizeAgentForStatus) });
     return;
   }
 
   if (waitTerminal) {
     const res = await waitForTerminal(registryRoot, name, timeoutSec);
-    printJson({ ok: true, agents: res.agents, changed: res.changed || [] });
+    printJson({ ok: true, agents: res.agents.map(sanitizeAgentForStatus), changed: res.changed || [] });
     return;
   }
 
@@ -835,13 +1283,13 @@ async function statusCommand(argv) {
     const nextAgents = agentsArray(nextRegistry, name);
     const changed = diffStatuses(prevAgents, nextAgents);
     if (changed.length > 0) {
-      printJson({ ok: true, agents: nextAgents, changed });
+      printJson({ ok: true, agents: nextAgents.map(sanitizeAgentForStatus), changed });
       return;
     }
     prevRegistry = nextRegistry;
     prevAgents = nextAgents;
     if (deadline && Date.now() >= deadline) {
-      printJson({ ok: true, agents: prevAgents, changed: [] });
+      printJson({ ok: true, agents: prevAgents.map(sanitizeAgentForStatus), changed: [] });
       return;
     }
   }
@@ -993,8 +1441,6 @@ async function searchCommand(argv) {
         cwdInput = argv[i + 1] || "";
         i += 1;
         break;
-      case "--json":
-        break;
       default:
         fail("Unknown argument", "E_ARG_UNKNOWN", { arg: a });
     }
@@ -1049,7 +1495,7 @@ async function searchCommand(argv) {
     printJson(errorPayload("Invalid pattern", "E_PATTERN_INVALID"));
     process.exit(1);
   }
-  printJson({ ok: true, name, sessionId, matches });
+  printJson({ ok: true, name, matches });
 }
 
 async function cancelCommand(argv) {
@@ -1071,8 +1517,6 @@ async function cancelCommand(argv) {
       case "--signal":
         signal = argv[i + 1] || "TERM";
         i += 1;
-        break;
-      case "--json":
         break;
       default:
         fail("Unknown argument", "E_ARG_UNKNOWN", { arg: a });
@@ -1133,6 +1577,10 @@ async function main() {
   }
   if (cmd === "run-worker") {
     await runWorker();
+    return;
+  }
+  if (cmd === "status-daemon") {
+    await statusDaemon();
     return;
   }
   if (cmd === "status") {

@@ -73,7 +73,7 @@ Query status (sync) or wait.
 Usage:
 
 ```sh
-status.sh [--name <name>] [--json] [--wait] [--timeout <seconds>] [--wait-terminal]
+status.sh [--name <name>] [--wait] [--timeout <seconds>] [--wait-terminal]
 ```
 
 Semantics:
@@ -87,7 +87,6 @@ Flags:
 - --wait: block until any status changes.
 - --timeout <seconds>: max seconds to wait (default: 300, 0 = forever).
 - --wait-terminal: wait until target reaches done or unknown (requires --name).
-- --json: output as JSON.
 
 ### result.sh
 
@@ -118,7 +117,7 @@ Search session history by regex.
 Usage:
 
 ```sh
-search.sh --name <name> --pattern <regex> [--role any|user|assistant] [--json]
+search.sh --name <name> --pattern <regex> [--role any|user|assistant]
 ```
 
 Flags:
@@ -126,7 +125,6 @@ Flags:
 - --name <name>: name of the subagent session (required).
 - --pattern <regex>: search pattern (required).
 - --role <role>: filter by role: any (default), user, assistant.
-- --json: output as JSON.
 
 ### cancel.sh
 
@@ -135,7 +133,7 @@ Cancel a running subagent.
 Usage:
 
 ```sh
-cancel.sh --name <name> [--signal TERM|KILL] [--json]
+cancel.sh --name <name> [--signal TERM|KILL]
 ```
 
 v3 semantics:
@@ -146,7 +144,6 @@ Flags:
 
 - --name <name>: name of the subagent to cancel (required).
 - --signal <sig>: signal to send: TERM (default), KILL.
-- --json: output as JSON.
 
 ## Error contract
 

@@ -1,6 +1,6 @@
 # Backlog (opencode-subagent)
 
-Last updated: 2026-02-07
+Last updated: 2026-02-08
 
 This backlog is derived from code review and manual validation notes.
 
@@ -18,6 +18,7 @@ Conventions:
 
 | ID | Pri | Eff | Status | Title |
 |---:|:---:|:---:|:-------|:------|
+| B-018 | P1 | L | Needs clarification | [Context Management] Dialog cleanup script, drop older tool details by using an LLM to decide on summarizing certain tools and filling in with compressed detail |
 | B-001 | P0 | L | Done | JS migration: single Node CLI + `.sh` wrappers |
 | B-002 | P0 | M | Done | Registry v3: atomic mutable file (not JSONL) |
 | B-003 | P0 | M | Done | `result`: non-hanging + bounded export timeout |
@@ -31,10 +32,11 @@ Conventions:
 | B-011 | P2 | S | Done | Doc alignment (v2↔v3 consistency sweep) |
 | B-012 | P2 | S | Done | Post-fix manual validation (O04/O07) |
 | B-013 | P2 | M | Done | Update/expand deterministic tests for JS migration |
-| B-014 | P3 | M | Not started | `status --diagram` ASCII overview |
-| B-015 | P3 | L | Not started | Status token/usage reporting (if feasible) |
+| B-014 | P3 | M | Done | `status --diagram` ASCII overview |
+| B-015 | P3 | L | Done | Status token/usage reporting (if feasible) |
 | B-016 | P2 | M | Done | SessionId gap closure |
 | B-017 | P2 | M | Done | Single registry root (no CWD scoping) |
+
 
 ## P0 — Migration (first) + unblock automation
 
@@ -185,16 +187,16 @@ Notes:
 
 ### B-014) `status --diagram` ASCII overview
 
-- Status: Not started
+- Status: Done
 - Notes:
   - Render from cached usage in registry (no export in render path).
-  - Include name, status, pid, messageCount, token totals, updatedAt.
+  - Provide a dashboard view with live/done sections and runtime fields.
   - Support `--watch` to refresh the ASCII view.
 
 ### B-015) Status token/usage reporting (if feasible)
 
-- Status: Not started
+- Status: Done
 - Notes:
   - Use a status daemon to run `opencode export` in the background.
   - Cache tokens and message counts for running and done sessions.
-  - Embed usage in registry; expose `lastError` and `retryAt`.
+  - Embed usage in registry with internal retry/backoff metadata.
