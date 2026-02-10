@@ -1,6 +1,6 @@
 # opencode-subagent
 
-## 0.3.1 (v4)
+## 4.0.0 (v4)
 
 - Added status daemon with cached usage and ASCII dashboard output.
 - Split user-facing dashboard into `status_watch.sh`.
