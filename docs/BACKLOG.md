@@ -18,6 +18,8 @@ Conventions:
 
 | ID | Pri | Eff | Status | Title |
 |---:|:---:|:---:|:-------|:------|
+| B-020 | P1 | L | Needs clarification | Improve status_watch table |
+| B-019 | P1 | L | Needs clarification | Let the orchestrator choose model variant when kicking of a new session |
 | B-018 | P1 | L | Needs clarification | [Context Management] Dialog cleanup script, drop older tool details by using an LLM to decide on summarizing certain tools and filling in with compressed detail |
 | B-001 | P0 | L | Done | JS migration: single Node CLI + `.sh` wrappers |
 | B-002 | P0 | M | Done | Registry: atomic mutable file (not JSONL) |
@@ -37,166 +39,20 @@ Conventions:
 | B-016 | P2 | M | Done | SessionId gap closure |
 | B-017 | P2 | M | Done | Single registry root (no CWD scoping) |
 
+## B-020
 
-## P0 — Migration (first) + unblock automation
+The current table (see below) must have model name and variant (e.g. "gpt-5-low", "gpt-5-medium") tracked in MODEL field, DIALOG field must be renamed to TOKENS
 
-### B-001) JS migration: single Node CLI + `.sh` wrappers
+```
+LIVE AGENTS
+No agents are running.
 
-- Status: Done
-- Why: Shell + `osascript` is macOS-specific and makes timeouts/JSON brittle.
-- Scope:
-  - Implement one Node CLI with subcommands: `run`, `status`, `result`, `search`, `cancel`.
-  - Keep `.sh` scripts as entrypoints (thin wrappers that call the CLI).
-  - Treat Node/npm as a runtime requirement; Bun remains for dev/tests.
-- Acceptance:
-  - Existing `.sh` entrypoints continue to work with the same flags.
-  - Outputs remain one-line JSON for programmatic calls.
-  - Non-LLM tests can run using the mock `opencode` shim.
+DONE AGENTS
+NAME            STATUS    PID  STARTED              COMPLETED             RUNTIME  MSG  DIALOG  FULL
+pipeline/build  done    34812  2026-02-10 15:31:40  2026-02-10 15:34:28  00:02:48    -       -     -
+pipeline/plan   done    31287  2026-02-10 15:29:51  2026-02-10 15:31:15  00:01:24    2   10396     -
+```
 
-### B-002) Registry: atomic mutable file (not JSONL)
+## B-019
 
-- Status: Done
-- Why: Append-only JSONL is harder to make race-safe; we want an atomic “latest state” registry.
-- Proposed format:
-  - `<orchestrator-cwd>/.opencode-subagent/registry.json` containing a map keyed by `name`.
-  - Optional: keep a short per-agent history array if needed for debugging.
-- Acceptance:
-  - Updates are atomic (write temp + rename).
-  - Concurrent writers do not corrupt the registry (use lockfile or equivalent).
-  - `status` refresh remains deterministic (PID liveness check).
-
-### B-003) `result`: non-hanging + bounded export timeout
-
-- Status: Done
-- Why: Blocks O04 and O07; `opencode export` must never hang the orchestrator.
-- Acceptance:
-  - If `sessionId` missing/empty: fail fast (`ok:false`) and do not attempt export.
-  - Export is bounded by timeout; timeout returns `ok:false` with a clear `code`.
-  - Deterministic test coverage (mock opencode + synthetic registry states).
-
-### B-004) `run`: JSON error contract for invalid `--cwd`
-
-- Status: Done
-- Why: Orchestrators need consistent JSON on early failures.
-- Acceptance:
-  - Invalid `--cwd` returns one-line JSON error and non-zero exit.
-  - Deterministic non-LLM test.
-
-## P1 — Fix test-drive issues (post-migration)
-
-### B-005) `status`: add `--wait-terminal`
-
-- Status: Done
-- Why: Current `--wait` returns on any change; orchestration needs “wait until terminal”.
-- Acceptance:
-  - `--wait` semantics remain unchanged.
-  - `--wait-terminal` blocks until `done` or `unknown` for a given `--name`.
-  - Documented in `.claude/skills/opencode-subagent/SKILL.md`.
-
-### B-006) `result`: add `--wait`/`--timeout`
-
-- Status: Done
-- Why: Orchestrators should be able to “wait then fetch” in one call.
-- Acceptance:
-  - With `--wait`, wait until terminal then export.
-  - Without `--wait`, fail fast if not ready.
-
-### B-007) `cancel`: strict non-running semantics
-
-- Status: Done
-- Why: Cancel should not claim success when nothing is running.
-- Acceptance:
-  - If target is not running, return `ok:false` with a clear `code`.
-  - Do not send signals for `done/unknown/scheduled`.
-  - Deterministic non-LLM test.
-
-### B-008) SessionId discovery improvements (run + result)
-
-- Status: Done
-- Why: Some runs can end up with `sessionId:null`; `result` depends on it.
-- Acceptance:
-  - `run` attempts discovery and persists `sessionId` when available.
-  - `result` can optionally do a brief fallback lookup by title but never blocks/hangs.
-
-## P2 — Finalize + polish
-
-### B-009) Error codes (`code`) across all commands
-
-- Status: Done
-- Why: Orchestrators benefit from stable machine-readable reasons.
-- Acceptance:
-  - Errors include a short `code` (e.g., `E_CWD_INVALID`, `E_SESSIONID_MISSING`, `E_EXPORT_TIMEOUT`).
-
-### B-010) Update docs for Node/registry/flags
-
-- Status: Done
-- Scope:
-  - `.claude/skills/opencode-subagent/SKILL.md`
-  - README usage examples
-  - `docs/PROPOSED-CONTRACT.md` (if we treat it as the source of truth)
-
-### B-011) Doc alignment (legacy↔current consistency sweep)
-
-- Status: Done
-- Why: During migration we will temporarily have legacy and current docs side-by-side; we need one pass to ensure readers don’t get conflicting instructions.
-- Scope:
-  - Ensure all docs clearly label whether they apply to legacy vs current.
-  - Ensure all references to registry paths are correct (`runs.jsonl` vs `registry.json`).
-  - Ensure examples match the chosen flags and semantics (`--wait-terminal`, `--timeout`, cancel strictness).
-  - Ensure the draft skill doc matches the intended replacement behavior for `.claude/skills/opencode-subagent/SKILL.md`.
-- Acceptance:
-  - “Single source of truth” is explicit (either `.claude/skills/opencode-subagent/SKILL.md` or a draft skill doc during the transition).
-  - No doc instructs a command/path combination that can’t work in the targeted version.
-
-### B-012) Post-fix manual validation (O04/O07)
-
-- Status: Done
-- Acceptance:
-  - Re-run O04 and O07 with a real model and record outcomes.
-
-Notes:
-- Rerun on 2026-02-02 with OPENCODE_PSA_MODEL=dial/gpt-5-mini. O04 and O07 were partial/blocked due to missing sessionId in attachments/review runs.
-
-### B-013) Update/expand deterministic tests for JS migration
-
-- Status: Done
-- Why: Migration will change the registry format and internals; tests must cover behavior, not implementation details.
-- Acceptance:
-  - Non-LLM suite passes using mock `opencode`.
-  - Add at least one test for concurrent registry updates (or lock behavior).
-
-Notes:
-- Added concurrent registry write test in tests/non-llm/registry.spec.ts.
-
-### B-016) SessionId gap closure
-
-- Status: Done
-- Why: Some runs still finish without a `sessionId`, blocking result export.
-- Scope:
-  - Harden discovery retries and ensure terminal records capture stderr/errors.
-
-### B-017) Single registry root (no CWD scoping)
-
-- Status: Done
-- Why: Avoid ambiguity when querying across different working directories.
-- Scope:
-  - Use the orchestrator working directory as the single registry root.
-  - Reject duplicate names unless `--resume` is used.
-
-## P3 — Nice-to-have / future ideas
-
-### B-014) `status --diagram` ASCII overview
-
-- Status: Done
-- Notes:
-  - Render from cached usage in registry (no export in render path).
-  - Provide a dashboard view with live/done sections and runtime fields.
-  - Support `--watch` to refresh the ASCII view.
-
-### B-015) Status token/usage reporting (if feasible)
-
-- Status: Done
-- Notes:
-  - Use a status daemon to run `opencode export` in the background.
-  - Cache tokens and message counts for running and done sessions.
-  - Embed usage in registry with internal retry/backoff metadata.
+While working with open-code I can choose model variants (typically reasoning effort) via ctrl-t, there're predefined variants for standard models, e.g. Low, Medium and High reasoning efforts for GPT-5. Investigate how that is imnplementged and if it can be controlled via CLI, implement is viable.
