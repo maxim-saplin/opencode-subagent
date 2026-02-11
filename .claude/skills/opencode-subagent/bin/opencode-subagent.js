@@ -317,6 +317,8 @@ function sanitizeAgentForStatus(record) {
     finishedAt: record.finishedAt ?? null,
   };
   if (record.usage !== undefined) out.usage = record.usage;
+  if (record.model !== undefined) out.model = record.model;
+  if (record.variant !== undefined) out.variant = record.variant;
   return out;
 }
 
@@ -755,9 +757,13 @@ function renderDiagram(agents, nowMs) {
     const runtimeMs = parseTimeMs(agent.startedAt);
     const runtime = runtimeMs === null ? "-" : formatDuration(nowMs - runtimeMs);
     const { messageCount, dialogTokens, pct } = toUsageColumns(agent);
+    const modelBase = agent.model || "-";
+    const variantSuffix = agent.variant ? `-${agent.variant}` : "";
+    const model = modelBase !== "-" ? modelBase + variantSuffix : "-";
     return {
       name: agent && agent.name ? String(agent.name) : "",
       status: agent && agent.status ? String(agent.status) : "",
+      model,
       pid: agent && agent.pid ? String(agent.pid) : "-",
       startedAt,
       runtime,
@@ -774,9 +780,13 @@ function renderDiagram(agents, nowMs) {
     const endMs = parseTimeMs(agent.finishedAt);
     const runtime = startMs === null || endMs === null ? "-" : formatDuration(endMs - startMs);
     const { messageCount, dialogTokens, pct } = toUsageColumns(agent);
+    const modelBase = agent.model || "-";
+    const variantSuffix = agent.variant ? `-${agent.variant}` : "";
+    const model = modelBase !== "-" ? modelBase + variantSuffix : "-";
     return {
       name: agent && agent.name ? String(agent.name) : "",
       status: agent && agent.status ? String(agent.status) : "",
+      model,
       pid: agent && agent.pid ? String(agent.pid) : "-",
       startedAt,
       finishedAt,
@@ -796,11 +806,12 @@ function renderDiagram(agents, nowMs) {
       renderTable(liveRows, [
         { header: "NAME", key: "name" },
         { header: "STATUS", key: "status" },
+        { header: "MODEL", key: "model" },
         { header: "PID", key: "pid", align: "right" },
         { header: "STARTED", key: "startedAt" },
         { header: "RUNTIME", key: "runtime", align: "right" },
         { header: "MSG", key: "messageCount", align: "right" },
-        { header: "DIALOG", key: "dialogTokens", align: "right" },
+        { header: "DIALOG_TKN", key: "dialogTokens", align: "right" },
         { header: "FULL", key: "pct", align: "right" },
       ])
     );
@@ -815,12 +826,13 @@ function renderDiagram(agents, nowMs) {
       renderTable(doneRows, [
         { header: "NAME", key: "name" },
         { header: "STATUS", key: "status" },
+        { header: "MODEL", key: "model" },
         { header: "PID", key: "pid", align: "right" },
         { header: "STARTED", key: "startedAt" },
         { header: "COMPLETED", key: "finishedAt" },
         { header: "RUNTIME", key: "runtime", align: "right" },
         { header: "MSG", key: "messageCount", align: "right" },
-        { header: "DIALOG", key: "dialogTokens", align: "right" },
+        { header: "DIALOG_TKN", key: "dialogTokens", align: "right" },
         { header: "FULL", key: "pct", align: "right" },
       ])
     );
@@ -917,6 +929,7 @@ async function runCommand(argv, forceResume) {
   let resume = forceResume === true;
   let agent = "";
   let model = "";
+  let variant = "";
   let cwdInput = process.cwd();
   const files = [];
 
@@ -946,6 +959,10 @@ async function runCommand(argv, forceResume) {
         model = argv[i + 1] || "";
         i += 1;
         break;
+      case "--variant":
+        variant = argv[i + 1] || "";
+        i += 1;
+        break;
       case "--file":
         files.push(argv[i + 1] || "");
         i += 1;
@@ -967,6 +984,7 @@ async function runCommand(argv, forceResume) {
   const registryRoot = process.cwd();
   const targetCwd = await ensureCwd(cwdInput);
   const modelValue = model || process.env.OPENCODE_PSA_MODEL || DEFAULT_MODEL;
+  const variantValue = variant || process.env.OPENCODE_PSA_VARIANT || "";
   const title = `persistent-subagent: ${name}`;
   let sessionId = "";
   let mode = "new";
@@ -1004,6 +1022,7 @@ async function runCommand(argv, forceResume) {
     updatedAt: startedAt,
     finishedAt: null,
     model: modelValue,
+    variant: variantValue || null,
     prompt,
     cwd: targetCwd,
   };
@@ -1023,6 +1042,7 @@ async function runCommand(argv, forceResume) {
     title,
     agent,
     model: modelValue,
+    variant: variantValue,
     sessionId,
     files,
     startedAt,
@@ -1042,7 +1062,6 @@ async function runCommand(argv, forceResume) {
     name,
     pid: worker.pid,
     status: "scheduled",
-    sessionId: sessionId || null,
     model: modelValue,
     mode,
     startedAt,
@@ -1068,6 +1087,7 @@ async function runWorker() {
   const title = payload.title;
   const agent = payload.agent || "";
   const model = payload.model || DEFAULT_MODEL;
+  const variant = payload.variant || "";
   const sessionId = payload.sessionId || "";
   const files = Array.isArray(payload.files) ? payload.files : [];
   const startedAt = payload.startedAt || nowIso();
@@ -1080,6 +1100,7 @@ async function runWorker() {
 
   try {
     const args = ["run", prompt, "--title", title, "--model", model];
+    if (variant) args.push("--variant", variant);
     if (agent) args.push("--agent", agent);
     if (sessionId) args.push("--session", sessionId);
     for (const file of files) {
@@ -1117,6 +1138,7 @@ async function runWorker() {
       updatedAt: nowIso(),
       finishedAt: null,
       model,
+      variant: variant || null,
       prompt,
       cwd,
     };
@@ -1152,6 +1174,7 @@ async function runWorker() {
       updatedAt: finishedAt,
       finishedAt,
       model,
+      variant: variant || null,
       prompt,
       cwd,
       error: errorInfo,

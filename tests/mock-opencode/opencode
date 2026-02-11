@@ -55,6 +55,7 @@ function parseRunArgs(runArgs) {
   let prompt = "";
   let title = "";
   let model = "";
+  let variant = "";
   let sessionId = "";
   const files = [];
 
@@ -64,6 +65,8 @@ function parseRunArgs(runArgs) {
       title = runArgs[++i] || "";
     } else if (a === "--model") {
       model = runArgs[++i] || "";
+    } else if (a === "--variant") {
+      variant = runArgs[++i] || "";
     } else if (a === "--session") {
       sessionId = runArgs[++i] || "";
     } else if (a === "--file") {
@@ -78,7 +81,7 @@ function parseRunArgs(runArgs) {
     }
   }
 
-  return { prompt, title, model, sessionId, files };
+  return { prompt, title, model, variant, sessionId, files };
 }
 
 function parseModel(model) {
@@ -86,6 +89,12 @@ function parseModel(model) {
   const m = model || fallback;
   const [providerID, modelID] = m.includes("/") ? m.split("/") : ["opencode", m];
   return { providerID, modelID, contextWindow: 8192 };
+}
+
+function parseModelWithVariant(model, variant) {
+  const base = parseModel(model);
+  if (variant) base.variant = variant;
+  return base;
 }
 
 function parseMockDirectives(prompt) {
@@ -104,7 +113,7 @@ function parseMockDirectives(prompt) {
 
 async function runCommand(runArgs) {
   ensureDirs();
-  const { prompt, title, model, sessionId, files } = parseRunArgs(runArgs);
+  const { prompt, title, model, variant, sessionId, files } = parseRunArgs(runArgs);
   const now = nowMs();
 
   let sess = null;
@@ -125,7 +134,7 @@ async function runCommand(runArgs) {
   }
 
   sess.updated = now;
-  sess.model = parseModel(model);
+  sess.model = parseModelWithVariant(model, variant);
 
   if (prompt) {
     sess.messages.push({

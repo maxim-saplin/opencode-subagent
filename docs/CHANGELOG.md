@@ -1,5 +1,10 @@
 # opencode-subagent
 
+## 5.0.1 (v5)
+
+- **B-019**: Added `--variant` flag pass-through to opencode CLI for reasoning effort control. Falls back to `OPENCODE_PSA_VARIANT` env var. Stored in registry records and output JSON.
+- **B-020**: Added MODEL column to `status --diagram` table (shows `provider/model-variant`). Renamed DIALOG column to DIALOG_TKN. Added `model` and `variant` to sanitized status output.
+
 ## 5.0.0 (v5)
 
 - **Breaking**: Split `run_subagent.sh` into `start_subagent.sh` and `resume_subagent.sh`.

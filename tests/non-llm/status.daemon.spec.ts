@@ -230,9 +230,54 @@ describe("status daemon + usage cache", () => {
     const output = String(stdout || "");
     expect(output).toContain("NAME");
     expect(output).toContain("STATUS");
+    expect(output).toContain("MODEL");
     expect(output).toContain("PID");
     expect(output).toContain("MSG");
-    expect(output).toContain("DIALOG");
+    expect(output).toContain("DIALOG_TKN");
     expect(output).toContain("FULL");
+  }, 20000);
+
+  it("shows model in diagram MODEL column", async () => {
+    const cwd = path.join(ROOT, ".tmp", "tests", "status-daemon-model-col");
+    await fs.rm(cwd, { recursive: true, force: true });
+    await fs.mkdir(cwd, { recursive: true });
+
+    await exec(START, [
+      "--name",
+      "model-col-agent",
+      "--prompt",
+      "MOCK:REPLY:MODEL_COL",
+      "--cwd",
+      cwd,
+    ], { cwd, env: mockEnv(cwd) });
+
+    await waitForStatusDone(cwd, "model-col-agent", 10);
+
+    const { stdout } = await exec(STATUS, ["--diagram", "--cwd", cwd], { env: mockEnv(cwd), cwd });
+    const output = String(stdout || "");
+    expect(output).toContain("opencode/gpt-5-nano");
+  }, 20000);
+
+  it("appends variant with dash in MODEL column", async () => {
+    const cwd = path.join(ROOT, ".tmp", "tests", "status-daemon-variant-col");
+    await fs.rm(cwd, { recursive: true, force: true });
+    await fs.mkdir(cwd, { recursive: true });
+
+    await exec(START, [
+      "--name",
+      "variant-col-agent",
+      "--prompt",
+      "MOCK:REPLY:VARIANT_COL",
+      "--variant",
+      "high",
+      "--cwd",
+      cwd,
+    ], { cwd, env: mockEnv(cwd) });
+
+    await waitForStatusDone(cwd, "variant-col-agent", 10);
+
+    const { stdout } = await exec(STATUS, ["--diagram", "--cwd", cwd], { env: mockEnv(cwd), cwd });
+    const output = String(stdout || "");
+    expect(output).toContain("opencode/gpt-5-nano-high");
   }, 20000);
 });

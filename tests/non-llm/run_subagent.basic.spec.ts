@@ -54,4 +54,48 @@ describe("start_subagent.sh basic CLI behavior (Bun)", () => {
     expect(json.ok).toBe(false);
     expect(json.error).toBe("Invalid --cwd");
   });
+
+  it("passes --variant through (not echoed in output, stored in registry)", async () => {
+    const cwd = path.join(ROOT, ".tmp", "tests", "variant-output-basic");
+    await fs.rm(cwd, { recursive: true, force: true });
+    await fs.mkdir(cwd, { recursive: true });
+
+    const { stdout } = await exec(START, [
+      "--name",
+      "test-variant-output",
+      "--prompt",
+      "MOCK:REPLY:OK",
+      "--variant",
+      "high",
+      "--cwd",
+      cwd,
+    ], { cwd, env: mockEnv(cwd) });
+
+    const line = String(stdout ?? "").trim().split(/\r?\n/).find((l) => l.trim().startsWith("{")) ?? "{}";
+    const json = JSON.parse(line);
+    expect(json.ok).toBe(true);
+    expect(json.variant).toBeUndefined();
+    expect(json.sessionId).toBeUndefined();
+  });
+
+  it("omits variant and sessionId from output when not relevant", async () => {
+    const cwd = path.join(ROOT, ".tmp", "tests", "variant-null-basic");
+    await fs.rm(cwd, { recursive: true, force: true });
+    await fs.mkdir(cwd, { recursive: true });
+
+    const { stdout } = await exec(START, [
+      "--name",
+      "test-variant-null",
+      "--prompt",
+      "MOCK:REPLY:OK",
+      "--cwd",
+      cwd,
+    ], { cwd, env: mockEnv(cwd) });
+
+    const line = String(stdout ?? "").trim().split(/\r?\n/).find((l) => l.trim().startsWith("{")) ?? "{}";
+    const json = JSON.parse(line);
+    expect(json.ok).toBe(true);
+    expect(json.variant).toBeUndefined();
+    expect(json.sessionId).toBeUndefined();
+  });
 });

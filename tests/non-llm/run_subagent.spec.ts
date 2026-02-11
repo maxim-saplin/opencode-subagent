@@ -123,4 +123,53 @@ describe("start_subagent.sh and resume_subagent.sh behavior", () => {
     expect(json.ok).toBe(true);
     expect(json.lastAssistantText).toBe("PSA_ATTACHMENT_OK");
   });
+
+  it("stores variant in registry record", async () => {
+    const cwd = path.join(ROOT, ".tmp", "tests", "run-variant-registry");
+    await fs.rm(cwd, { recursive: true, force: true });
+    await fs.mkdir(cwd, { recursive: true });
+
+    await exec(START, [
+      "--name",
+      "variant-reg-agent",
+      "--prompt",
+      "MOCK:REPLY:VARIANT_OK",
+      "--variant",
+      "high",
+      "--cwd",
+      cwd,
+    ], { cwd, env: mockEnv(cwd) });
+
+    await waitForStatusDone(cwd, "variant-reg-agent");
+
+    const registry = await fs.readFile(path.join(cwd, ".opencode-subagent", "registry.json"), "utf8");
+    const parsed = JSON.parse(registry);
+    const record = parsed.agents?.["variant-reg-agent"];
+    expect(record).toBeTruthy();
+    expect(record.variant).toBe("high");
+    expect(record.model).toBe("opencode/gpt-5-nano");
+  });
+
+  it("stores null variant when not provided", async () => {
+    const cwd = path.join(ROOT, ".tmp", "tests", "run-no-variant-registry");
+    await fs.rm(cwd, { recursive: true, force: true });
+    await fs.mkdir(cwd, { recursive: true });
+
+    await exec(START, [
+      "--name",
+      "no-variant-agent",
+      "--prompt",
+      "MOCK:REPLY:NO_VARIANT_OK",
+      "--cwd",
+      cwd,
+    ], { cwd, env: mockEnv(cwd) });
+
+    await waitForStatusDone(cwd, "no-variant-agent");
+
+    const registry = await fs.readFile(path.join(cwd, ".opencode-subagent", "registry.json"), "utf8");
+    const parsed = JSON.parse(registry);
+    const record = parsed.agents?.["no-variant-agent"];
+    expect(record).toBeTruthy();
+    expect(record.variant).toBeNull();
+  });
 });

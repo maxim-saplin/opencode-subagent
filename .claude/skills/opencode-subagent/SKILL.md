@@ -29,7 +29,6 @@ Run OpenCode sessions. All runs are async (background). A JSON registry tracks l
 
 ## Caveats
 
-- You can use env var to control defauls: OPENCODE_PSA_MODEL, OPENCODE_PSA_DIR, OPENCODE_PSA_WAIT_TIMEOUT_SEC
 - Your orchestrator's tool call might have own timeouts, be ready to retry
 
 ## Commands
@@ -42,7 +41,7 @@ Usage:
 
 ```sh
 start_subagent.sh --name <name> --prompt <text> [--cwd <dir>] \
-  [--agent <agent>] [--model <provider/model>] [--file <path> ...]
+  [--agent <agent>] [--model <provider/model>] [--variant <variant>] [--file <path> ...]
 ```
 
 Output: single JSON line.
@@ -50,7 +49,7 @@ Output: single JSON line.
 Success:
 
 ```json
-{"ok":true,"name":"pipeline/plan","pid":12345,"status":"scheduled","sessionId":null,"model":"opencode/gpt-5-nano","mode":"new","startedAt":"2026-02-02T12:00:00Z"}
+{"ok":true,"name":"pipeline/plan","pid":12345,"status":"scheduled","model":"opencode/gpt-5-nano","mode":"new","startedAt":"2026-02-02T12:00:00Z"}
 ```
 
 Failure:
@@ -66,6 +65,7 @@ Flags:
 - --cwd <dir>: working directory for opencode runs (default: $PWD). Registry is stored under the orchestrator working directory.
 - --agent <agent>: OpenCode agent preset (e.g., plan, build).
 - --model <provider/model>: model id (falls back to OPENCODE_PSA_MODEL).
+- --variant <variant>: model variant / reasoning effort (e.g., high, low, minimal). Falls back to `OPENCODE_PSA_VARIANT`.
 - --file <path>: attach local file(s) to the message (repeatable).
 
 If the name already exists, the command returns `E_NAME_EXISTS`.
@@ -183,4 +183,5 @@ Common fields:
 |-------------------------------|--------------------|----------------------------------------------------------------------|
 | OPENCODE_PSA_DIR              | .opencode-subagent | Registry directory name.                                             |
 | OPENCODE_PSA_MODEL            | (none)             | Default model if --model is omitted.                                 |
+| OPENCODE_PSA_VARIANT          | (none)             | Default variant if --variant is omitted.                             |
 | OPENCODE_PSA_WAIT_TIMEOUT_SEC | 100                | Max seconds for status --wait and --wait-terminal. 0 = wait forever. |
