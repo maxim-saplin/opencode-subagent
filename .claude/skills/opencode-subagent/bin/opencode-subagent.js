@@ -319,6 +319,7 @@ function sanitizeAgentForStatus(record) {
   if (record.usage !== undefined) out.usage = record.usage;
   if (record.model !== undefined) out.model = record.model;
   if (record.variant !== undefined) out.variant = record.variant;
+  if (record.resumeCount !== undefined) out.resumeCount = record.resumeCount;
   return out;
 }
 
@@ -592,6 +593,29 @@ async function exportSessionJson(sessionId, cwd) {
   return JSON.parse(jsonText);
 }
 
+async function buildModelContextMap() {
+  try {
+    const { stdout } = await execFileAsync("opencode", ["models", "--verbose"], {
+      timeout: 10000,
+      maxBuffer: EXEC_MAX_BUFFER,
+    });
+    const map = new Map();
+    const text = String(stdout || "");
+    const blocks = text.split(/^(\S+\/\S+)\n/m).filter(Boolean);
+    for (let i = 0; i < blocks.length - 1; i += 2) {
+      const key = blocks[i].trim();
+      try {
+        const meta = JSON.parse(blocks[i + 1]);
+        const ctx = meta && meta.limit ? meta.limit.context : null;
+        if (typeof ctx === "number" && ctx > 0) map.set(key, ctx);
+      } catch { /* skip unparseable */ }
+    }
+    return map;
+  } catch {
+    return new Map();
+  }
+}
+
 function extractDialogTokens(messages) {
   if (!Array.isArray(messages)) return null;
   for (let i = messages.length - 1; i >= 0; i -= 1) {
@@ -603,25 +627,31 @@ function extractDialogTokens(messages) {
     const infoTokens = info && typeof info.tokens === "object" ? info.tokens : null;
     const directTokens = m.tokens && typeof m.tokens === "object" ? m.tokens : null;
     const input = coerceFiniteNumber(infoTokens ? infoTokens.input : directTokens ? directTokens.input : null);
-    if (input !== null) return input;
+    if (input !== null && input > 0) return input;
   }
   return null;
 }
 
-function extractContextWindow(exportData) {
+function extractContextWindow(exportData, modelContextMap, registryModel) {
   if (!exportData || typeof exportData !== "object") return null;
   const info = exportData.info && typeof exportData.info === "object" ? exportData.info : null;
   const model = info && typeof info.model === "object" ? info.model : exportData.model && typeof exportData.model === "object" ? exportData.model : null;
-  if (!model) return null;
-  const value = model.contextWindow ?? model.context ?? model.context_window ?? null;
-  return coerceFiniteNumber(value);
+  if (model) {
+    const value = model.contextWindow ?? model.context ?? model.context_window ?? null;
+    const num = coerceFiniteNumber(value);
+    if (num !== null && num > 0) return num;
+  }
+  if (registryModel && modelContextMap && modelContextMap.has(registryModel)) {
+    return modelContextMap.get(registryModel);
+  }
+  return null;
 }
 
-function buildUsage(exportData) {
+function buildUsage(exportData, modelContextMap, registryModel) {
   const messages = exportData && Array.isArray(exportData.messages) ? exportData.messages : [];
   const messageCount = messages.length;
   const dialogTokens = extractDialogTokens(messages);
-  const contextWindow = extractContextWindow(exportData);
+  const contextWindow = extractContextWindow(exportData, modelContextMap, registryModel);
   const contextFullPct = dialogTokens !== null && contextWindow !== null && contextWindow > 0
     ? dialogTokens / contextWindow
     : null;
@@ -760,6 +790,7 @@ function renderDiagram(agents, nowMs) {
     const modelBase = agent.model || "-";
     const variantSuffix = agent.variant ? `-${agent.variant}` : "";
     const model = modelBase !== "-" ? modelBase + variantSuffix : "-";
+    const resumed = typeof agent.resumeCount === "number" && agent.resumeCount > 0 ? String(agent.resumeCount) : "-";
     return {
       name: agent && agent.name ? String(agent.name) : "",
       status: agent && agent.status ? String(agent.status) : "",
@@ -767,6 +798,7 @@ function renderDiagram(agents, nowMs) {
       pid: agent && agent.pid ? String(agent.pid) : "-",
       startedAt,
       runtime,
+      resumed,
       messageCount,
       dialogTokens,
       pct,
@@ -783,6 +815,7 @@ function renderDiagram(agents, nowMs) {
     const modelBase = agent.model || "-";
     const variantSuffix = agent.variant ? `-${agent.variant}` : "";
     const model = modelBase !== "-" ? modelBase + variantSuffix : "-";
+    const resumed = typeof agent.resumeCount === "number" && agent.resumeCount > 0 ? String(agent.resumeCount) : "-";
     return {
       name: agent && agent.name ? String(agent.name) : "",
       status: agent && agent.status ? String(agent.status) : "",
@@ -791,6 +824,7 @@ function renderDiagram(agents, nowMs) {
       startedAt,
       finishedAt,
       runtime,
+      resumed,
       messageCount,
       dialogTokens,
       pct,
@@ -810,6 +844,7 @@ function renderDiagram(agents, nowMs) {
         { header: "PID", key: "pid", align: "right" },
         { header: "STARTED", key: "startedAt" },
         { header: "RUNTIME", key: "runtime", align: "right" },
+        { header: "RESUMED", key: "resumed", align: "right" },
         { header: "MSG", key: "messageCount", align: "right" },
         { header: "DIALOG_TKN", key: "dialogTokens", align: "right" },
         { header: "FULL", key: "pct", align: "right" },
@@ -831,6 +866,7 @@ function renderDiagram(agents, nowMs) {
         { header: "STARTED", key: "startedAt" },
         { header: "COMPLETED", key: "finishedAt" },
         { header: "RUNTIME", key: "runtime", align: "right" },
+        { header: "RESUMED", key: "resumed", align: "right" },
         { header: "MSG", key: "messageCount", align: "right" },
         { header: "DIALOG_TKN", key: "dialogTokens", align: "right" },
         { header: "FULL", key: "pct", align: "right" },
@@ -983,8 +1019,6 @@ async function runCommand(argv, forceResume) {
 
   const registryRoot = process.cwd();
   const targetCwd = await ensureCwd(cwdInput);
-  const modelValue = model || process.env.OPENCODE_PSA_MODEL || DEFAULT_MODEL;
-  const variantValue = variant || process.env.OPENCODE_PSA_VARIANT || "";
   const title = `persistent-subagent: ${name}`;
   let sessionId = "";
   let mode = "new";
@@ -997,6 +1031,18 @@ async function runCommand(argv, forceResume) {
   if (existing && resume && existing.cwd && existing.cwd !== targetCwd) {
     fail("Name already exists", "E_NAME_EXISTS", { name, existingCwd: existing.cwd, cwd: targetCwd });
   }
+
+  if (resume && existing) {
+    if (!model && !process.env.OPENCODE_PSA_MODEL && existing.model) {
+      model = existing.model;
+    }
+    if (!variant && !process.env.OPENCODE_PSA_VARIANT && existing.variant) {
+      variant = existing.variant;
+    }
+  }
+
+  const modelValue = model || process.env.OPENCODE_PSA_MODEL || DEFAULT_MODEL;
+  const variantValue = variant || process.env.OPENCODE_PSA_VARIANT || "";
 
   if (resume) {
     mode = "resume";
@@ -1012,6 +1058,7 @@ async function runCommand(argv, forceResume) {
   }
 
   const startedAt = nowIso();
+  const prevResumeCount = existing && typeof existing.resumeCount === "number" ? existing.resumeCount : 0;
   const scheduledRecord = {
     name,
     pid: null,
@@ -1023,6 +1070,7 @@ async function runCommand(argv, forceResume) {
     finishedAt: null,
     model: modelValue,
     variant: variantValue || null,
+    resumeCount: resume ? prevResumeCount + 1 : 0,
     prompt,
     cwd: targetCwd,
   };
@@ -1047,6 +1095,7 @@ async function runCommand(argv, forceResume) {
     files,
     startedAt,
     registryRoot,
+    resumeCount: scheduledRecord.resumeCount,
   };
 
   const worker = spawn(process.execPath, [__filename, "run-worker"], {
@@ -1088,6 +1137,7 @@ async function runWorker() {
   const agent = payload.agent || "";
   const model = payload.model || DEFAULT_MODEL;
   const variant = payload.variant || "";
+  const resumeCount = typeof payload.resumeCount === "number" ? payload.resumeCount : 0;
   const sessionId = payload.sessionId || "";
   const files = Array.isArray(payload.files) ? payload.files : [];
   const startedAt = payload.startedAt || nowIso();
@@ -1139,6 +1189,7 @@ async function runWorker() {
       finishedAt: null,
       model,
       variant: variant || null,
+      resumeCount,
       prompt,
       cwd,
     };
@@ -1175,6 +1226,7 @@ async function runWorker() {
       finishedAt,
       model,
       variant: variant || null,
+      resumeCount,
       prompt,
       cwd,
       error: errorInfo,
@@ -1193,6 +1245,7 @@ async function runWorker() {
 async function statusDaemon() {
   requireCommand("opencode");
   const registryRoot = process.cwd();
+  const modelContextMap = await buildModelContextMap();
 
   while (true) {
     const registry = await refreshRegistry(registryRoot, null);
@@ -1222,7 +1275,7 @@ async function statusDaemon() {
 
       try {
         const exportData = await exportSessionJson(sessionId, targetCwd);
-        const usage = buildUsage(exportData);
+        const usage = buildUsage(exportData, modelContextMap, agent.model);
         await updateAgentUsage(registryRoot, name, (record) => {
           if (!record || record.sessionId !== sessionId) return null;
           return {

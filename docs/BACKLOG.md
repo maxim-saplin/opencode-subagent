@@ -14,10 +14,13 @@ Conventions:
   - Done
   - Needs clarification
 
+## TBD (not refined notes)
+
 ## Index
 
 | ID | Pri | Eff | Status | Title |
 |---:|:---:|:---:|:-------|:------|
+| B-022 | P1 | M | Not started | Status/usage reporting issues: FULL, DIALOG_TKN while running, model on resume |
 | B-021 | P1 | M | Done | Refactor skill API: split run_subagent, remove timeout from status/result |
 | B-020 | P1 | M | Done | Improve status_watch table: add MODEL column, rename DIALOG → DIALOG_TKN |
 | B-019 | P1 | M | Done | Pass `--variant` (reasoning effort) through to opencode CLI |
@@ -39,49 +42,3 @@ Conventions:
 | B-015 | P3 | L | Done | Status token/usage reporting (if feasible) |
 | B-016 | P2 | M | Done | SessionId gap closure |
 | B-017 | P2 | M | Done | Single registry root (no CWD scoping) |
-
-## B-021
-
-- Split `run_subagent` into `start_subagent` and `resume_subagent`
-- Remove `--timeout` from status (use `OPENCODE_PSA_WAIT_TIMEOUT_SEC` env var)
-- Remove `--timeout`/`--wait` from result; make result always sync; when running, report status immediately
-
-## B-020
-
-Add a MODEL column to `status --diagram` table and rename DIALOG → DIALOG_TKN.
-
-Note: `status_watch` / `status --diagram` is user-facing display only — no effect on agent functioning.
-
-- Add `model` key to row objects in `renderDiagram()` for both live and done tables.
-- Keep full provider/model display (e.g. `opencode/gpt-5-nano`).
-- Append variant with dash suffix when present (e.g. `opencode/gpt-5-nano-high`).
-- Add `{ header: "MODEL", key: "model" }` column after STATUS in both table definitions.
-- Rename `{ header: "DIALOG", … }` → `{ header: "DIALOG_TKN", … }` in both tables.
-- Add `model` and `variant` to `sanitizeAgentForStatus()` output.
-- Update diagram test assertions (`DIALOG` → `DIALOG_TKN`, add `MODEL` check, verify variant dash suffix).
-
-Depends on B-019 for variant data.
-
-Target:
-```
-DONE AGENTS
-NAME            STATUS  MODEL                        PID  STARTED              COMPLETED             RUNTIME  MSG  DIALOG_TKN  FULL
-pipeline/build  done    opencode/gpt-5-nano-high   34812  2026-02-10 15:31:40  2026-02-10 15:34:28  00:02:48    -           -     -
-pipeline/plan   done    opencode/gpt-5-nano        31287  2026-02-10 15:29:51  2026-02-10 15:31:15  00:01:24    2       10396     -
-```
-
-See [docs/PLAN-B019-B020.md](PLAN-B019-B020.md) for full plan.
-
-## B-019
-
-**Finding**: `opencode run --variant <string>` is a first-class CLI flag (confirmed via `opencode run --help`). Implementation is a pure pass-through.
-
-- Parse `--variant` in `runCommand()` arg parsing.
-- Add `OPENCODE_PSA_VARIANT` env var fallback (optional, no default).
-- Add `variant` to payload, scheduled/running/done registry records, and output JSON.
-- Conditionally add `--variant` to spawn args in `runWorker()` when set.
-- Update `tests/mock-opencode/opencode` `parseRunArgs()` to accept `--variant`.
-- Add tests in `run_subagent.basic.spec.ts` and `run_subagent.spec.ts`.
-- Update SKILL.md: add `--variant` to usage line, flags list (with description), env vars table, success JSON example.
-
-See [docs/PLAN-B019-B020.md](PLAN-B019-B020.md) for full plan.

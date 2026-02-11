@@ -172,4 +172,50 @@ describe("start_subagent.sh and resume_subagent.sh behavior", () => {
     expect(record).toBeTruthy();
     expect(record.variant).toBeNull();
   });
+
+  it("resume inherits model and variant from existing record", async () => {
+    const cwd = path.join(ROOT, ".tmp", "tests", "run-resume-model-inherit");
+    await fs.rm(cwd, { recursive: true, force: true });
+    await fs.mkdir(cwd, { recursive: true });
+
+    const baseEnv = mockEnv(cwd);
+    delete baseEnv.OPENCODE_PSA_MODEL;
+
+    await exec(START, [
+      "--name",
+      "inherit-model-agent",
+      "--prompt",
+      "MOCK:REPLY:ACK1",
+      "--model",
+      "azure/gpt-5.2",
+      "--variant",
+      "high",
+      "--cwd",
+      cwd,
+    ], { cwd, env: baseEnv });
+
+    await waitForStatusDone(cwd, "inherit-model-agent");
+
+    let registry = JSON.parse(await fs.readFile(path.join(cwd, ".opencode-subagent", "registry.json"), "utf8"));
+    expect(registry.agents["inherit-model-agent"].model).toBe("azure/gpt-5.2");
+    expect(registry.agents["inherit-model-agent"].variant).toBe("high");
+
+    const resumeEnv = mockEnv(cwd);
+    delete resumeEnv.OPENCODE_PSA_MODEL;
+
+    await exec(RESUME, [
+      "--name",
+      "inherit-model-agent",
+      "--prompt",
+      "MOCK:REPLY:ACK2",
+      "--cwd",
+      cwd,
+    ], { cwd, env: resumeEnv });
+
+    await waitForStatusDone(cwd, "inherit-model-agent");
+
+    registry = JSON.parse(await fs.readFile(path.join(cwd, ".opencode-subagent", "registry.json"), "utf8"));
+    expect(registry.agents["inherit-model-agent"].model).toBe("azure/gpt-5.2");
+    expect(registry.agents["inherit-model-agent"].variant).toBe("high");
+  }, 30000);
 });

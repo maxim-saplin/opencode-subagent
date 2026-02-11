@@ -14,6 +14,7 @@ const ROOT = path.resolve(__dirname, "../..");
 afterAll(cleanupTempDirs);
 
 const START = scriptPath("start_subagent.sh");
+const RESUME = scriptPath("resume_subagent.sh");
 const STATUS = scriptPath("status.sh");
 
 async function waitForCondition(fn: () => Promise<boolean>, timeoutMs = 8000, intervalMs = 200) {
@@ -136,19 +137,19 @@ describe("status daemon + usage cache", () => {
       "--name",
       "daemon-done-agent",
       "--prompt",
-      "MOCK:REPLY:FINAL",
+      "MOCK:SLEEP:3 MOCK:REPLY:FINAL",
       "--cwd",
       cwd,
     ], { cwd, env: mockEnv(cwd) });
 
-    await waitForStatusDone(cwd, "daemon-done-agent", 10);
+    await waitForStatusDone(cwd, "daemon-done-agent", 15);
 
     await waitForCondition(async () => {
       const json = await fetchStatus(cwd, "daemon-done-agent");
       const agent = (json.agents || [])[0];
       return Boolean(agent && agent.usage && agent.usage.messageCount >= 2 && agent.usage.dialogTokens > 0);
     });
-  }, 20000);
+  }, 25000);
 
   it("logs export failures without surfacing them in status", async () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "status-daemon-log");
@@ -280,4 +281,136 @@ describe("status daemon + usage cache", () => {
     const output = String(stdout || "");
     expect(output).toContain("opencode/gpt-5-nano-high");
   }, 20000);
+
+  it("populates FULL percentage from model context map", async () => {
+    const cwd = path.join(ROOT, ".tmp", "tests", "status-daemon-full");
+    await fs.rm(cwd, { recursive: true, force: true });
+    await fs.mkdir(cwd, { recursive: true });
+
+    await exec(START, [
+      "--name",
+      "daemon-full-agent",
+      "--prompt",
+      "MOCK:SLEEP:5 MOCK:REPLY:FULL_TEST",
+      "--cwd",
+      cwd,
+    ], { cwd, env: mockEnv(cwd) });
+
+    await waitForCondition(async () => {
+      const json = await fetchStatus(cwd, "daemon-full-agent");
+      const agent = (json.agents || [])[0];
+      return Boolean(agent && agent.usage && agent.usage.contextFullPct !== null && agent.usage.contextFullPct !== undefined);
+    }, 12000, 250);
+
+    const json = await fetchStatus(cwd, "daemon-full-agent");
+    const agent = (json.agents || [])[0];
+    expect(agent.usage.contextFullPct).toBeGreaterThan(0);
+  }, 20000);
+
+  it("skips zero-token assistant messages in dialog token calculation", async () => {
+    const cwd = path.join(ROOT, ".tmp", "tests", "status-daemon-zero-tokens");
+    await fs.rm(cwd, { recursive: true, force: true });
+    await fs.mkdir(cwd, { recursive: true });
+
+    await exec(START, [
+      "--name",
+      "zero-tkn-anchor",
+      "--prompt",
+      "MOCK:SLEEP:5 MOCK:REPLY:ANCHOR",
+      "--cwd",
+      cwd,
+    ], { cwd, env: mockEnv(cwd) });
+
+    await waitForCondition(async () => {
+      try {
+        await fs.access(path.join(cwd, ".opencode-subagent", "registry.json"));
+        return true;
+      } catch {
+        return false;
+      }
+    });
+
+    const mockDir = path.join(cwd, ".mock-opencode", "sessions");
+    await fs.mkdir(mockDir, { recursive: true });
+    const sessionData = {
+      id: "ses_zero_tkn",
+      title: "persistent-subagent: zero-token-test",
+      created: Date.now(),
+      updated: Date.now(),
+      model: { providerID: "opencode", modelID: "gpt-5-nano" },
+      messages: [
+        { info: { role: "user" }, parts: [{ type: "text", text: "hello" }] },
+        { info: { role: "assistant", tokens: { input: 500 } }, parts: [{ type: "text", text: "first reply" }] },
+        { info: { role: "user" }, parts: [{ type: "text", text: "continue" }] },
+        { info: { role: "assistant", tokens: { input: 0 } }, parts: [{ type: "text", text: "streaming..." }] },
+      ],
+    };
+    await fs.writeFile(path.join(mockDir, "ses_zero_tkn.json"), JSON.stringify(sessionData));
+
+    const registry = await readRegistry(cwd);
+    const now = new Date().toISOString();
+    registry.agents = registry.agents || {};
+    registry.agents["zero-token-test"] = {
+      name: "zero-token-test",
+      pid: null,
+      sessionId: "ses_zero_tkn",
+      status: "done",
+      exitCode: 0,
+      startedAt: now,
+      updatedAt: now,
+      finishedAt: now,
+      model: "opencode/gpt-5-nano",
+      prompt: "test",
+      cwd,
+    };
+    await fs.writeFile(path.join(cwd, ".opencode-subagent", "registry.json"), JSON.stringify(registry), "utf8");
+
+    await waitForCondition(async () => {
+      const json = await fetchStatus(cwd, "zero-token-test");
+      const agent = (json.agents || [])[0];
+      return Boolean(agent && agent.usage && agent.usage.dialogTokens !== null && agent.usage.dialogTokens !== undefined);
+    }, 10000, 250);
+
+    const json = await fetchStatus(cwd, "zero-token-test");
+    const agent = (json.agents || [])[0];
+    expect(agent.usage.dialogTokens).toBe(500);
+  }, 30000);
+
+  it("shows RESUMED column with resume count in diagram", async () => {
+    const cwd = path.join(ROOT, ".tmp", "tests", "status-daemon-resumed-col");
+    await fs.rm(cwd, { recursive: true, force: true });
+    await fs.mkdir(cwd, { recursive: true });
+
+    await exec(START, [
+      "--name",
+      "resumed-col-agent",
+      "--prompt",
+      "MOCK:REPLY:ACK1",
+      "--cwd",
+      cwd,
+    ], { cwd, env: mockEnv(cwd) });
+
+    await waitForStatusDone(cwd, "resumed-col-agent", 10);
+
+    await exec(RESUME, [
+      "--name",
+      "resumed-col-agent",
+      "--prompt",
+      "MOCK:REPLY:ACK2",
+      "--cwd",
+      cwd,
+    ], { cwd, env: mockEnv(cwd) });
+
+    await waitForStatusDone(cwd, "resumed-col-agent", 10);
+
+    const registry = JSON.parse(await fs.readFile(path.join(cwd, ".opencode-subagent", "registry.json"), "utf8"));
+    expect(registry.agents["resumed-col-agent"].resumeCount).toBe(1);
+
+    const { stdout } = await exec(STATUS, ["--diagram", "--cwd", cwd], { env: mockEnv(cwd), cwd });
+    const output = String(stdout || "");
+    expect(output).toContain("RESUMED");
+    // The DONE table should show "1" for the resume count
+    const doneSection = output.split("DONE AGENTS")[1] || "";
+    expect(doneSection).toContain("1");
+  }, 30000);
 });

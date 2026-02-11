@@ -1,5 +1,13 @@
 # opencode-subagent
 
+## 5.0.2 (v5)
+
+- **B-022-A**: FULL column now populated via `opencode models --verbose` context window cache built at daemon startup, since real opencode exports lack context window metadata.
+- **B-022-B**: DIALOG_TKN no longer shows `0` while running; `extractDialogTokens` skips assistant messages with `tokens.input === 0` (not yet finalized).
+- **B-022-C**: Resume without `--model` now inherits model and variant from the existing registry record instead of falling back to the default model.
+- Mock alignment: removed `contextWindow` from mock export output; added `models --verbose` command to mock.
+- Added RESUMED column to `status --diagram` showing resume count per agent.
+
 ## 5.0.1 (v5)
 
 - **B-019**: Added `--variant` flag pass-through to opencode CLI for reasoning effort control. Falls back to `OPENCODE_PSA_VARIANT` env var. Stored in registry records and output JSON.

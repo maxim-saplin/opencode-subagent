@@ -88,7 +88,7 @@ function parseModel(model) {
   const fallback = process.env.OPENCODE_PSA_MODEL || "opencode/gpt-5-nano";
   const m = model || fallback;
   const [providerID, modelID] = m.includes("/") ? m.split("/") : ["opencode", m];
-  return { providerID, modelID, contextWindow: 8192 };
+  return { providerID, modelID };
 }
 
 function parseModelWithVariant(model, variant) {
@@ -228,6 +228,20 @@ function exportSession(id) {
 
   if (cmd === "export") {
     exportSession(args[1]);
+    return;
+  }
+
+  if (cmd === "models") {
+    if (args.includes("--verbose")) {
+      const models = [
+        { key: "opencode/gpt-5-nano", meta: { id: "gpt-5-nano", providerID: "opencode", limit: { context: 8192, output: 4096 } } },
+        { key: "azure/gpt-5.2", meta: { id: "gpt-5.2", providerID: "azure", limit: { context: 400000, output: 128000 } } },
+      ];
+      for (const m of models) {
+        console.log(m.key);
+        console.log(JSON.stringify(m.meta));
+      }
+    }
     return;
   }
 
