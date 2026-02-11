@@ -3,11 +3,11 @@
 This skill lets you run named, persistent OpenCode subagents that you can resume later. You get simple commands to start, check status, fetch the latest answer, search history, and cancel runs—without losing the session thread.
 
 Some of the actions available to main agent (orchestrator):
-- Start: `run_subagent.sh --name <name> --prompt <text>`
+- Start: `start_subagent.sh --name <name> --prompt <text>`
+- Resume: `resume_subagent.sh --name <name> --prompt <text>`
 - Check: `status.sh`
 - Result: `result.sh --name <name>`
-- Wait for done: `status.sh --name <name> --wait-terminal --timeout 60`
-- Wait and fetch: `result.sh --name <name> --wait --timeout 60 --json`
+- Wait for done: `status.sh --name <name> --wait-terminal` (timeout via OPENCODE_PSA_WAIT_TIMEOUT_SEC, default 100)
 
 ---
 
@@ -26,6 +26,12 @@ Some of the actions available to main agent (orchestrator):
 - `opencode` CLI on PATH
 - Node.js available as `node`
 - A valid model ID (e.g. `opencode/gpt-5-nano`)
+
+## Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| OPENCODE_PSA_WAIT_TIMEOUT_SEC | 100 | Max seconds for status `--wait` and `--wait-terminal`. 0 = wait forever. |
 
 ## Skill installation
 
@@ -74,7 +80,7 @@ OPENCODE_PSA_MODEL=opencode/gpt-5-nano bun test tests/llm
 Start a new persistent session (async-only, registry-backed):
 
 ```bash
-./.claude/skills/opencode-subagent/scripts/run_subagent.sh \
+./.claude/skills/opencode-subagent/scripts/start_subagent.sh \
 	--name "hello" \
 	--prompt "Hello world" \
 	--model opencode/gpt-5-nano
@@ -83,9 +89,8 @@ Start a new persistent session (async-only, registry-backed):
 Resume the same session later:
 
 ```bash
-./.claude/skills/opencode-subagent/scripts/run_subagent.sh \
+./.claude/skills/opencode-subagent/scripts/resume_subagent.sh \
 	--name "hello" \
-	--resume \
 	--prompt "Continue with follow-ups"
 ```
 

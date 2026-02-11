@@ -11,7 +11,7 @@ const ROOT = path.resolve(__dirname, "../..");
 
 afterAll(cleanupTempDirs);
 
-const RUN = scriptPath("run_subagent.sh");
+const START = scriptPath("start_subagent.sh");
 const CANCEL = scriptPath("cancel.sh");
 const STATUS = scriptPath("status.sh");
 
@@ -20,7 +20,7 @@ describe("cancel.sh behavior", () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "cancel-run");
     await fs.mkdir(cwd, { recursive: true });
 
-    await exec(RUN, [
+    await exec(START, [
       "--name",
       "cancel-agent",
       "--prompt",
@@ -46,7 +46,7 @@ describe("cancel.sh behavior", () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "cancel-done");
     await fs.mkdir(cwd, { recursive: true });
 
-    await exec(RUN, [
+    await exec(START, [
       "--name",
       "cancel-done-agent",
       "--prompt",

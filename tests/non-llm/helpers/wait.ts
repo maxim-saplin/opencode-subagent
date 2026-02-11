@@ -14,7 +14,7 @@ export async function waitForStatusDone(cwd: string, name?: string, timeoutSecon
   const scoped = name ? agents.filter((a: any) => a.name === name) : agents;
   if (scoped.some((a: any) => a.status === "done")) return;
 
-  const waitArgs = ["--timeout", String(timeoutSeconds), "--cwd", cwd];
+  const waitArgs = ["--cwd", cwd];
   if (name) {
     waitArgs.unshift("--name", name);
     waitArgs.unshift("--wait-terminal");

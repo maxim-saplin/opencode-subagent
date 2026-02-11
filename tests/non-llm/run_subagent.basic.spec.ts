@@ -11,14 +11,14 @@ const exec = promisify(execFile);
 afterAll(cleanupTempDirs);
 
 const ROOT = path.resolve(__dirname, "../..");
-const SKILL_RUN = scriptPath("run_subagent.sh");
+const START = scriptPath("start_subagent.sh");
 
-describe("run_subagent.sh basic CLI behavior (Bun)", () => {
+describe("start_subagent.sh basic CLI behavior (Bun)", () => {
   it("fails fast when --prompt is missing", async () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "missing-prompt-basic");
     await fs.mkdir(cwd, { recursive: true });
 
-    const res = await exec(SKILL_RUN, [
+    const res = await exec(START, [
       "--name",
       "test-missing-prompt",
       "--prompt",
@@ -38,7 +38,7 @@ describe("run_subagent.sh basic CLI behavior (Bun)", () => {
   it("returns JSON error for invalid --cwd", async () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "missing-cwd-basic", "missing");
 
-    const res = await exec(SKILL_RUN, [
+    const res = await exec(START, [
       "--name",
       "test-missing-cwd",
       "--prompt",

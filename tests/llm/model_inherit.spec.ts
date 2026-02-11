@@ -7,7 +7,7 @@ import { cleanupTempDirs, registerTempDir } from "../non-llm/helpers/cleanup";
 
 const exec = promisify(execFile);
 const ROOT = path.resolve(__dirname, "../..");
-const RUN = path.join(ROOT, ".claude/skills/opencode-subagent/scripts/run_subagent.sh");
+const START = path.join(ROOT, ".claude/skills/opencode-subagent/scripts/start_subagent.sh");
 
 afterAll(cleanupTempDirs);
 
@@ -23,7 +23,7 @@ function requireModel() {
 // LLM-dependent tests placeholder.
 // These should:
 // - Use a working model (e.g. via OPENCODE_PSA_MODEL).
-// - Call run_subagent.sh without --model and verify that modelUsed is set.
+// - Call start_subagent.sh without --model and verify that modelUsed is set.
 // - Optionally verify that lastAssistantText contains the expected token.
 
 describe("LLM: model usage", () => {
@@ -34,7 +34,7 @@ describe("LLM: model usage", () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "llm-model");
     registerTempDir(cwd);
     await fs.mkdir(cwd, { recursive: true });
-    const { stdout } = await exec(RUN, [
+    const { stdout } = await exec(START, [
       "--name",
       "llm/model",
       "--prompt",

@@ -11,7 +11,7 @@ const exec = promisify(execFile);
 afterAll(cleanupTempDirs);
 
 const ROOT = path.resolve(__dirname, "../..");
-const SKILL_RUN = scriptPath("run_subagent.sh");
+const START = scriptPath("start_subagent.sh");
 const STATUS = scriptPath("status.sh");
 
 describe("status.sh basic list after scheduled", () => {
@@ -20,7 +20,7 @@ describe("status.sh basic list after scheduled", () => {
     await fs.rm(cwd, { recursive: true, force: true });
     await fs.mkdir(cwd, { recursive: true });
 
-    const run = await exec(SKILL_RUN, [
+    const run = await exec(START, [
       "--name",
       "status-basic-agent",
       "--prompt",

@@ -62,20 +62,26 @@ Each line is a JSON object (append-only, latest entry per `name` wins):
 
 The orchestration system consists of the following scripts:
 
-- `run_subagent.sh`: Start a named subagent session asynchronously.
+- `start_subagent.sh`: Start a new named subagent session asynchronously.
+- `resume_subagent.sh`: Continue an existing session addressed by name.
 - `status.sh`: Query or wait for subagent status changes.
 - `result.sh`: Fetch the last assistant response from a session.
 - `search.sh`: Search session history by regex.
 - `cancel.sh`: Terminate a running subagent.
 
-### 1. `run_subagent.sh`
+### 1. `start_subagent.sh` / `resume_subagent.sh`
 
-Start a named subagent session (always async).
+Start a new session (`start_subagent.sh`) or continue an existing session (`resume_subagent.sh`). Always async.
 
-**Usage:**
+**Usage (start):**
 ```
-run_subagent.sh --name <name> --prompt <text> [--resume] [--cwd <dir>] \
-                [--agent <agent>] [--model <provider/model>] [--file <path> ...]
+start_subagent.sh --name <name> --prompt <text> [--cwd <dir>] \
+                  [--agent <agent>] [--model <provider/model>] [--file <path> ...]
+```
+
+**Usage (resume):**
+```
+resume_subagent.sh --name <name> --prompt <text> [--cwd <dir>]
 ```
 
 **Flags:**
@@ -83,7 +89,6 @@ run_subagent.sh --name <name> --prompt <text> [--resume] [--cwd <dir>] \
 |---------------------|----------|----------------------------------------------------------|
 | `--name <name>`     | Yes      | Stable address for this subagent session.                |
 | `--prompt <text>`   | Yes      | Message sent to the session.                             |
-| `--resume`          | No       | Continue existing session addressed by `--name`.         |
 | `--cwd <dir>`       | No       | Working directory (default: `$PWD`).                     |
 | `--agent <agent>`   | No       | OpenCode agent preset (e.g., `plan`, `build`).           |
 | `--model <p/m>`     | No       | Model in `provider/model` format.                        |
@@ -116,7 +121,7 @@ Failure:
 
 **Behavior:**
 1. Validate inputs.
-2. If `--resume`, resolve existing `sessionId` from registry.
+2. For resume, resolve existing `sessionId` from registry.
 3. Write `scheduled` record to registry.
 4. Spawn `opencode run` in background via wrapper that will:
    - Update registry to `running` once process starts.
@@ -131,8 +136,10 @@ Query or wait for subagent status changes.
 
 **Usage:**
 ```
-status.sh [--name <name>] [--cwd <dir>] [--wait] [--timeout <seconds>]
+status.sh [--name <name>] [--cwd <dir>] [--wait] [--wait-terminal]
 ```
+
+Timeout for wait modes: `OPENCODE_PSA_WAIT_TIMEOUT_SEC` env (default: 100, 0 = forever).
 
 **Flags:**
 | Flag                | Required | Description                                              |
@@ -140,7 +147,7 @@ status.sh [--name <name>] [--cwd <dir>] [--wait] [--timeout <seconds>]
 | `--name <name>`     | No       | Filter to specific subagent (omit for all).              |
 | `--cwd <dir>`       | No       | Working directory (default: `$PWD`).                     |
 | `--wait`            | No       | Block until any status changes (long-poll mode).         |
-| `--timeout <sec>`   | No       | Max seconds to wait (default: 300, 0 = forever).         |
+| `--wait-terminal`   | No       | Wait until target --name reaches done or unknown.        |
 
 **Output (sync mode):**
 ```json
@@ -295,7 +302,7 @@ cancel.sh --name <name> [--cwd <dir>] [--signal <sig>]
 
 ## Internal: Wrapper Script
 
-The `run_subagent.sh` spawns a wrapper that:
+The `start_subagent.sh` / `resume_subagent.sh` spawns a wrapper that:
 
 1. Writes `running` status to registry once `opencode run` is confirmed started.
 2. Polls `opencode session list` to discover `sessionId` (with timeout).

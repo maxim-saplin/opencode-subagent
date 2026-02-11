@@ -13,7 +13,7 @@ const ROOT = path.resolve(__dirname, "../..");
 
 afterAll(cleanupTempDirs);
 
-const RUN = scriptPath("run_subagent.sh");
+const START = scriptPath("start_subagent.sh");
 const STATUS = scriptPath("status.sh");
 
 async function waitForCondition(fn: () => Promise<boolean>, timeoutMs = 8000, intervalMs = 200) {
@@ -54,7 +54,7 @@ describe("status daemon + usage cache", () => {
     await fs.rm(cwd, { recursive: true, force: true });
     await fs.mkdir(cwd, { recursive: true });
 
-    await exec(RUN, [
+    await exec(START, [
       "--name",
       "daemon-spawn-agent",
       "--prompt",
@@ -82,7 +82,7 @@ describe("status daemon + usage cache", () => {
     await fs.rm(cwd, { recursive: true, force: true });
     await fs.mkdir(cwd, { recursive: true });
 
-    await exec(RUN, [
+    await exec(START, [
       "--name",
       "daemon-exit-agent",
       "--prompt",
@@ -110,7 +110,7 @@ describe("status daemon + usage cache", () => {
     await fs.rm(cwd, { recursive: true, force: true });
     await fs.mkdir(cwd, { recursive: true });
 
-    await exec(RUN, [
+    await exec(START, [
       "--name",
       "daemon-running-agent",
       "--prompt",
@@ -132,7 +132,7 @@ describe("status daemon + usage cache", () => {
     await fs.rm(cwd, { recursive: true, force: true });
     await fs.mkdir(cwd, { recursive: true });
 
-    await exec(RUN, [
+    await exec(START, [
       "--name",
       "daemon-done-agent",
       "--prompt",
@@ -155,7 +155,7 @@ describe("status daemon + usage cache", () => {
     await fs.rm(cwd, { recursive: true, force: true });
     await fs.mkdir(cwd, { recursive: true });
 
-    await exec(RUN, [
+    await exec(START, [
       "--name",
       "daemon-log-anchor",
       "--prompt",
@@ -215,7 +215,7 @@ describe("status daemon + usage cache", () => {
     await fs.rm(cwd, { recursive: true, force: true });
     await fs.mkdir(cwd, { recursive: true });
 
-    await exec(RUN, [
+    await exec(START, [
       "--name",
       "daemon-diagram-agent",
       "--prompt",

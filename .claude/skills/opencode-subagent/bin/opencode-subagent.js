@@ -2,6 +2,7 @@
 /* eslint-disable no-console */
 const fs = require("fs");
 const fsp = require("fs/promises");
+const os = require("os");
 const path = require("path");
 const readline = require("readline");
 const { spawn, execFile } = require("child_process");
@@ -14,7 +15,7 @@ const execFileAsync = promisify(execFile);
 const EXEC_MAX_BUFFER = 16 * 1024 * 1024; // 16 MB
 
 const DEFAULT_MODEL = "opencode/gpt-5-nano";
-const DEFAULT_WAIT_TIMEOUT_SEC = 300;
+const DEFAULT_WAIT_TIMEOUT_SEC = 100;
 const EXPORT_TIMEOUT_MS = 15000;
 const LOCK_TIMEOUT_MS = 5000;
 const LOCK_RETRY_MS = 50;
@@ -534,13 +535,54 @@ function extractJsonSubstring(text) {
   return "";
 }
 
+/**
+ * Run opencode export writing to a temp file instead of a pipe.
+ * Pipes truncate at 128KB when opencode CLI writes to them (e.g. via Node execFile).
+ */
+async function runExportToStdout(sessionId, cwd) {
+  const tmpPath = path.join(os.tmpdir(), `opencode-export-${process.pid}-${Date.now()}.json`);
+  const fd = fs.openSync(tmpPath, "w");
+  try {
+    await new Promise((resolve, reject) => {
+      const child = spawn("opencode", ["export", sessionId], {
+        cwd,
+        stdio: ["ignore", fd, "pipe"],
+      });
+      const timeout = setTimeout(() => {
+        child.kill("SIGTERM");
+        reject(Object.assign(new Error("Export timed out"), { code: "ETIMEDOUT", killed: true }));
+      }, EXPORT_TIMEOUT_MS);
+      child.on("close", (code, signal) => {
+        clearTimeout(timeout);
+        if (code !== 0 && code !== null) {
+          reject(new Error(`opencode export exited with code ${code}`));
+        } else {
+          resolve();
+        }
+      });
+      child.on("error", (err) => {
+        clearTimeout(timeout);
+        reject(err);
+      });
+    });
+    fs.closeSync(fd);
+    return await fsp.readFile(tmpPath, "utf8");
+  } finally {
+    try {
+      fs.closeSync(fd);
+    } catch {
+      /* already closed */
+    }
+    try {
+      fs.unlinkSync(tmpPath);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 async function exportSessionJson(sessionId, cwd) {
-  const res = await execFileAsync("opencode", ["export", sessionId], {
-    cwd,
-    timeout: EXPORT_TIMEOUT_MS,
-    maxBuffer: EXEC_MAX_BUFFER,
-  });
-  const stdout = String(res.stdout || "");
+  const stdout = await runExportToStdout(sessionId, cwd);
   const idx = stdout.search(/[\{\[]/);
   if (idx === -1) throw new Error("No JSON found in export output");
   const jsonText = extractJsonSubstring(stdout);
@@ -869,10 +911,10 @@ function searchHistory(data, pattern, role) {
   return matches;
 }
 
-async function runCommand(argv) {
+async function runCommand(argv, forceResume) {
   let name = "";
   let prompt = "";
-  let resume = false;
+  let resume = forceResume === true;
   let agent = "";
   let model = "";
   let cwdInput = process.cwd();
@@ -894,7 +936,7 @@ async function runCommand(argv) {
         i += 1;
         break;
       case "--resume":
-        resume = true;
+        if (forceResume === undefined) resume = true;
         break;
       case "--agent":
         agent = argv[i + 1] || "";
@@ -1215,7 +1257,8 @@ async function statusCommand(argv) {
   let cwdInput = process.cwd();
   let wait = false;
   let waitTerminal = false;
-  let timeoutSec = DEFAULT_WAIT_TIMEOUT_SEC;
+  const timeoutSec =
+    coerceFiniteNumber(process.env.OPENCODE_PSA_WAIT_TIMEOUT_SEC) ?? DEFAULT_WAIT_TIMEOUT_SEC;
   let diagram = false;
   let watchSec = 0;
 
@@ -1245,11 +1288,6 @@ async function statusCommand(argv) {
           fail("Invalid --watch", "E_WATCH_INVALID", { value: argv[i + 1] });
         }
         diagram = true;
-        i += 1;
-        break;
-      case "--timeout":
-        timeoutSec = Number(argv[i + 1]);
-        if (!Number.isFinite(timeoutSec)) timeoutSec = DEFAULT_WAIT_TIMEOUT_SEC;
         i += 1;
         break;
       default:
@@ -1334,8 +1372,6 @@ async function resultCommand(argv) {
   let name = "";
   let cwdInput = process.cwd();
   let jsonMode = false;
-  let wait = false;
-  let timeoutSec = DEFAULT_WAIT_TIMEOUT_SEC;
 
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
@@ -1351,14 +1387,6 @@ async function resultCommand(argv) {
       case "--json":
         jsonMode = true;
         break;
-      case "--wait":
-        wait = true;
-        break;
-      case "--timeout":
-        timeoutSec = Number(argv[i + 1]);
-        if (!Number.isFinite(timeoutSec)) timeoutSec = DEFAULT_WAIT_TIMEOUT_SEC;
-        i += 1;
-        break;
       default:
         fail("Unknown argument", "E_ARG_UNKNOWN", { arg: a });
     }
@@ -1369,21 +1397,6 @@ async function resultCommand(argv) {
 
   const registryRoot = process.cwd();
 
-  const existingRegistry = await refreshRegistry(registryRoot, [name]);
-  const existingRecord = existingRegistry.agents ? existingRegistry.agents[name] : null;
-  if (!existingRecord) {
-    printJson(errorPayload("No session found for name", "E_NAME_NOT_FOUND"));
-    process.exit(1);
-  }
-
-  if (wait) {
-    const res = await waitForTerminal(registryRoot, name, timeoutSec);
-    if (res.timedOut) {
-      printJson(errorPayload("Result wait timed out", "E_TIMEOUT"));
-      process.exit(1);
-    }
-  }
-
   const registry = await refreshRegistry(registryRoot, [name]);
   const record = registry.agents ? registry.agents[name] : null;
   if (!record) {
@@ -1391,17 +1404,18 @@ async function resultCommand(argv) {
     process.exit(1);
   }
 
-  if (!wait && record.status !== "done") {
-    printJson(errorPayload("Session not done", "E_NOT_DONE", { status: record.status }));
-    process.exit(1);
+  if (record.status === "running" || record.status === "scheduled") {
+    if (jsonMode) {
+      printJson({ ok: true, name, status: record.status, lastAssistantText: null });
+    }
+    return;
   }
 
   const targetCwd = record.cwd || process.cwd();
   let sessionId = record.sessionId || "";
   if (!sessionId) {
     const title = `persistent-subagent: ${name}`;
-    const attempts = wait ? 20 : 5;
-    sessionId = await discoverSessionId(title, targetCwd, attempts);
+    sessionId = await discoverSessionId(title, targetCwd, 5);
     if (sessionId) {
       const updated = { ...record, sessionId, updatedAt: nowIso() };
       await upsertAgent(registryRoot, updated);
@@ -1415,12 +1429,7 @@ async function resultCommand(argv) {
   let exportData;
   let exportStdout = "";
   try {
-    const res = await execFileAsync("opencode", ["export", sessionId], {
-      cwd: targetCwd,
-      timeout: EXPORT_TIMEOUT_MS,
-      maxBuffer: EXEC_MAX_BUFFER,
-    });
-    exportStdout = String(res.stdout || "");
+    exportStdout = await runExportToStdout(sessionId, targetCwd);
     // Some opencode CLI versions emit log lines before the JSON payload.
     // Find the first JSON object/array start and parse from there.
     const idx = exportStdout.search(/[\{\[]/);
@@ -1503,12 +1512,7 @@ async function searchCommand(argv) {
   let exportData;
   let exportStdout2 = "";
   try {
-    const res = await execFileAsync("opencode", ["export", sessionId], {
-      cwd: targetCwd,
-      timeout: EXPORT_TIMEOUT_MS,
-      maxBuffer: EXEC_MAX_BUFFER,
-    });
-    exportStdout2 = String(res.stdout || "");
+    exportStdout2 = await runExportToStdout(sessionId, targetCwd);
     const idx = exportStdout2.search(/[\{\[]/);
     if (idx === -1) throw new Error("No JSON found in export output");
     const jsonText2 = extractJsonSubstring(exportStdout2);
@@ -1606,8 +1610,12 @@ async function main() {
   const argv = process.argv.slice(2);
   const cmd = argv[0];
 
-  if (cmd === "run") {
-    await runCommand(argv.slice(1));
+  if (cmd === "start") {
+    await runCommand(argv.slice(1), false);
+    return;
+  }
+  if (cmd === "resume") {
+    await runCommand(argv.slice(1), true);
     return;
   }
   if (cmd === "run-worker") {

@@ -11,31 +11,37 @@ Run OpenCode sessions. All runs are async (background). A JSON registry tracks l
 
 ## Status model
 
-| Status | Meaning |
-|---|---|
-| scheduled | A run record exists; worker not yet confirmed alive. |
-| running | Worker PID is alive. |
-| done | Worker exited; exitCode recorded. |
-| unknown | PID is dead without clean completion record (crash/kill -9). |
+| Status    | Meaning                                                      |
+|-----------|--------------------------------------------------------------|
+| scheduled | A run record exists; worker not yet confirmed alive.         |
+| running   | Worker PID is alive.                                         |
+| done      | Worker exited; exitCode recorded.                            |
+| unknown   | PID is dead without clean completion record (crash/kill -9). |
 
 ## Entry points
 
-- .claude/skills/opencode-subagent/scripts/run_subagent.sh
+- .claude/skills/opencode-subagent/scripts/start_subagent.sh
+- .claude/skills/opencode-subagent/scripts/resume_subagent.sh
 - .claude/skills/opencode-subagent/scripts/status.sh
 - .claude/skills/opencode-subagent/scripts/result.sh
 - .claude/skills/opencode-subagent/scripts/search.sh
 - .claude/skills/opencode-subagent/scripts/cancel.sh
 
+## Caveats
+
+- You can use env var to control defauls: OPENCODE_PSA_MODEL, OPENCODE_PSA_DIR, OPENCODE_PSA_WAIT_TIMEOUT_SEC
+- Your orchestrator's tool call might have own timeouts, be ready to retry
+
 ## Commands
 
-### run_subagent.sh
+### start_subagent.sh
 
-Start a named subagent session (always async).
+Start a new named subagent session (always async).
 
 Usage:
 
 ```sh
-run_subagent.sh --name <name> --prompt <text> [--resume] [--cwd <dir>] \
+start_subagent.sh --name <name> --prompt <text> [--cwd <dir>] \
   [--agent <agent>] [--model <provider/model>] [--file <path> ...]
 ```
 
@@ -57,13 +63,28 @@ Flags:
 
 - --name <name>: stable address for the subagent session (required).
 - --prompt <text>: message sent to the session (required).
-- --resume: continue the existing session addressed by --name.
 - --cwd <dir>: working directory for opencode runs (default: $PWD). Registry is stored under the orchestrator working directory.
 - --agent <agent>: OpenCode agent preset (e.g., plan, build).
 - --model <provider/model>: model id (falls back to OPENCODE_PSA_MODEL).
 - --file <path>: attach local file(s) to the message (repeatable).
 
-If the name already exists and --resume is not set, the command returns `E_NAME_EXISTS`.
+If the name already exists, the command returns `E_NAME_EXISTS`.
+
+### resume_subagent.sh
+
+Continue an existing session addressed by --name.
+
+Usage:
+
+```sh
+resume_subagent.sh --name <name> --prompt <text> [--cwd <dir>]
+```
+
+Flags:
+
+- --name <name>: stable address for the subagent session (required).
+- --prompt <text>: message sent to the session (required).
+- --cwd <dir>: must match existing record cwd if provided.
 
 ### status.sh
 
@@ -72,7 +93,7 @@ Query status (sync) or wait.
 Usage:
 
 ```sh
-status.sh [--name <name>] [--wait] [--timeout <seconds>] [--wait-terminal]
+status.sh [--name <name>] [--wait] [--wait-terminal]
 ```
 
 Semantics:
@@ -80,22 +101,25 @@ Semantics:
 - --wait: returns when any agent status changes (legacy behavior).
 - --wait-terminal: waits until the target --name reaches done or unknown.
 
+Timeout is configured via `OPENCODE_PSA_WAIT_TIMEOUT_SEC` (default: 100, 0 = forever).
+
 Flags:
 
 - --name <name>: filter to a specific subagent (omit for all).
 - --wait: block until any status changes.
-- --timeout <seconds>: max seconds to wait (default: 300, 0 = forever).
 - --wait-terminal: wait until target reaches done or unknown (requires --name).
 
 ### result.sh
 
-Fetch the last assistant response.
+Fetch the last assistant response. Response is always sync.
 
 Usage:
 
 ```sh
-result.sh --name <name> [--json] [--wait] [--timeout <seconds>]
+result.sh --name <name> [--json]
 ```
+
+When agent is done or unknown: fetches and returns the last assistant text. When agent is running or scheduled: returns status immediately (`ok: true`, `status`, `lastAssistantText: null` in --json mode).
 
 Hard guarantees:
 
@@ -105,8 +129,6 @@ Hard guarantees:
 Flags:
 
 - --name <name>: name of the subagent session (required).
-- --wait: wait until terminal then fetch.
-- --timeout <seconds>: max seconds to wait (default: 300, 0 = forever).
 - --json: output as JSON with metadata.
 
 ### search.sh
@@ -157,7 +179,8 @@ Common fields:
 
 ## Configuration
 
-| Variable | Default | Description |
-|---|---|---|
-| OPENCODE_PSA_DIR | .opencode-subagent | Registry directory name. |
-| OPENCODE_PSA_MODEL | (none) | Default model if --model is omitted. |
+| Variable                      | Default            | Description                                                          |
+|-------------------------------|--------------------|----------------------------------------------------------------------|
+| OPENCODE_PSA_DIR              | .opencode-subagent | Registry directory name.                                             |
+| OPENCODE_PSA_MODEL            | (none)             | Default model if --model is omitted.                                 |
+| OPENCODE_PSA_WAIT_TIMEOUT_SEC | 100                | Max seconds for status --wait and --wait-terminal. 0 = wait forever. |

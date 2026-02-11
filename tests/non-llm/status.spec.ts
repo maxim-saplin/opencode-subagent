@@ -11,7 +11,7 @@ const ROOT = path.resolve(__dirname, "../..");
 
 afterAll(cleanupTempDirs);
 
-const RUN = scriptPath("run_subagent.sh");
+const START = scriptPath("start_subagent.sh");
 const STATUS = scriptPath("status.sh");
 
 describe("status.sh behavior", () => {
@@ -19,7 +19,7 @@ describe("status.sh behavior", () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "status-filter");
     await fs.mkdir(cwd, { recursive: true });
 
-    await exec(RUN, [
+    await exec(START, [
       "--name",
       "status-one",
       "--prompt",
@@ -28,7 +28,7 @@ describe("status.sh behavior", () => {
       cwd,
     ], { cwd, env: mockEnv(cwd) });
 
-    await exec(RUN, [
+    await exec(START, [
       "--name",
       "status-two",
       "--prompt",
@@ -47,7 +47,7 @@ describe("status.sh behavior", () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "status-wait");
     await fs.mkdir(cwd, { recursive: true });
 
-    await exec(RUN, [
+    await exec(START, [
       "--name",
       "status-wait-agent",
       "--prompt",
@@ -60,8 +60,6 @@ describe("status.sh behavior", () => {
       "--name",
       "status-wait-agent",
       "--wait-terminal",
-      "--timeout",
-      "10",
       "--cwd",
       cwd,
     ], { cwd, env: mockEnv(cwd) });

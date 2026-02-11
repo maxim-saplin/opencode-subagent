@@ -1,6 +1,6 @@
 # Backlog (opencode-subagent)
 
-Last updated: 2026-02-08
+Last updated: 2026-02-10
 
 This backlog is derived from code review and manual validation notes.
 
@@ -18,6 +18,7 @@ Conventions:
 
 | ID | Pri | Eff | Status | Title |
 |---:|:---:|:---:|:-------|:------|
+| B-021 | P1 | M | Done | Refactor skill API: split run_subagent, remove timeout from status/result |
 | B-020 | P1 | L | Needs clarification | Improve status_watch table |
 | B-019 | P1 | L | Needs clarification | Let the orchestrator choose model variant when kicking of a new session |
 | B-018 | P1 | L | Needs clarification | [Context Management] Dialog cleanup script, drop older tool details by using an LLM to decide on summarizing certain tools and filling in with compressed detail |
@@ -38,6 +39,12 @@ Conventions:
 | B-015 | P3 | L | Done | Status token/usage reporting (if feasible) |
 | B-016 | P2 | M | Done | SessionId gap closure |
 | B-017 | P2 | M | Done | Single registry root (no CWD scoping) |
+
+## B-021
+
+- Split `run_subagent` into `start_subagent` and `resume_subagent`
+- Remove `--timeout` from status (use `OPENCODE_PSA_WAIT_TIMEOUT_SEC` env var)
+- Remove `--timeout`/`--wait` from result; make result always sync; when running, report status immediately
 
 ## B-020
 

@@ -12,15 +12,16 @@ const ROOT = path.resolve(__dirname, "../..");
 
 afterAll(cleanupTempDirs);
 
-const RUN = scriptPath("run_subagent.sh");
+const START = scriptPath("start_subagent.sh");
+const RESUME = scriptPath("resume_subagent.sh");
 const RESULT = scriptPath("result.sh");
 
-describe("run_subagent.sh behavior", () => {
+describe("start_subagent.sh and resume_subagent.sh behavior", () => {
   it("fails when --name is missing", async () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "run-missing-name");
     await fs.mkdir(cwd, { recursive: true });
 
-    const res = await exec(RUN, [
+    const res = await exec(START, [
       "--prompt",
       "MOCK:REPLY:HELLO",
       "--cwd",
@@ -38,7 +39,7 @@ describe("run_subagent.sh behavior", () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "run-scheduled");
     await fs.mkdir(cwd, { recursive: true });
 
-    const { stdout } = await exec(RUN, [
+    const { stdout } = await exec(START, [
       "--name",
       "run-scheduled-agent",
       "--prompt",
@@ -63,7 +64,7 @@ describe("run_subagent.sh behavior", () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "run-resume");
     await fs.mkdir(cwd, { recursive: true });
 
-    await exec(RUN, [
+    await exec(START, [
       "--name",
       "resume-agent",
       "--prompt",
@@ -74,10 +75,9 @@ describe("run_subagent.sh behavior", () => {
 
     await waitForStatusDone(cwd, "resume-agent");
 
-    const { stdout } = await exec(RUN, [
+    const { stdout } = await exec(RESUME, [
       "--name",
       "resume-agent",
-      "--resume",
       "--prompt",
       "MOCK:REPLY:ACK2",
       "--cwd",
@@ -94,7 +94,7 @@ describe("run_subagent.sh behavior", () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "run-attach");
     await fs.mkdir(cwd, { recursive: true });
 
-    await exec(RUN, [
+    await exec(START, [
       "--name",
       "attach-agent",
       "--prompt",
@@ -110,9 +110,6 @@ describe("run_subagent.sh behavior", () => {
     const { stdout } = await exec(RESULT, [
       "--name",
       "attach-agent",
-      "--wait",
-      "--timeout",
-      "10",
       "--cwd",
       cwd,
       "--json",

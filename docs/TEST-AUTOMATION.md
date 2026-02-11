@@ -34,9 +34,9 @@ The automation harness provides an opencode shim that supports:
 
 #### 1) Script Contract Tests (Unit)
 
-- run_subagent.sh: required flags, JSON error contract, resume by name, file attachments, registry write.
+- start_subagent.sh / resume_subagent.sh: required flags, JSON error contract, resume by name, file attachments, registry write.
 - status.sh: minimal agent records, wait and wait-terminal semantics, usage fields when available.
-- result.sh: plain text default, --json metadata, wait and timeout behavior.
+- result.sh: plain text default, --json metadata, sync-only (returns status when running).
 - search.sh: JSON output with matches and role filtering.
 - cancel.sh: strict non-running semantics and JSON error contract.
 - Registry mechanics: atomic updates, dedupe by name, concurrent writes.
@@ -69,8 +69,8 @@ Purpose: validate real OpenCode CLI behavior + real model execution, while keepi
 
 ### 1) Script Feature Verification (LLM)
 
-- L01: run_subagent.sh -> status.sh -> result.sh basic lifecycle.
-- L02: --resume keeps same sessionId and appends history.
+- L01: start_subagent.sh -> status.sh -> result.sh basic lifecycle.
+- L02: resume_subagent.sh keeps same sessionId and appends history.
 - L03: --file attachment influences output (tests/fixtures/attachment-token.txt).
 - L04: search.sh finds content from multiple turns.
 

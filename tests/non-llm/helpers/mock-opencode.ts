@@ -12,6 +12,7 @@ export function mockEnv(cwd: string) {
     PATH,
     OPENCODE_MOCK_DIR: mockDir,
     OPENCODE_PSA_MODEL: "opencode/gpt-5-nano",
+    OPENCODE_PSA_WAIT_TIMEOUT_SEC: "20",
   };
 }
 

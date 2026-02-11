@@ -11,7 +11,7 @@ const ROOT = path.resolve(__dirname, "../..");
 
 afterAll(cleanupTempDirs);
 
-const RUN = scriptPath("run_subagent.sh");
+const START = scriptPath("start_subagent.sh");
 
 describe("registry mechanics", () => {
   it("rejects duplicate names", async () => {
@@ -19,7 +19,7 @@ describe("registry mechanics", () => {
     await fs.rm(cwd, { recursive: true, force: true });
     await fs.mkdir(cwd, { recursive: true });
 
-    await exec(RUN, [
+    await exec(START, [
       "--name",
       "dedupe-agent",
       "--prompt",
@@ -28,7 +28,7 @@ describe("registry mechanics", () => {
       cwd,
     ], { cwd, env: mockEnv(cwd) });
 
-    const res = await exec(RUN, [
+    const res = await exec(START, [
       "--name",
       "dedupe-agent",
       "--prompt",
@@ -49,7 +49,7 @@ describe("registry mechanics", () => {
     await fs.rm(cwd, { recursive: true, force: true });
     await fs.mkdir(cwd, { recursive: true });
 
-    await exec(RUN, [
+    await exec(START, [
       "--name",
       "lines-agent",
       "--prompt",
@@ -72,7 +72,7 @@ describe("registry mechanics", () => {
     const names = Array.from({ length: 6 }, (_, i) => `concurrent-${i + 1}`);
     await Promise.all(
       names.map((name) =>
-        exec(RUN, [
+        exec(START, [
           "--name",
           name,
           "--prompt",

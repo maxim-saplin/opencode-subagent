@@ -12,7 +12,7 @@ const ROOT = path.resolve(__dirname, "../..");
 
 afterAll(cleanupTempDirs);
 
-const RUN = scriptPath("run_subagent.sh");
+const START = scriptPath("start_subagent.sh");
 const SEARCH = scriptPath("search.sh");
 
 describe("search.sh behavior", () => {
@@ -21,7 +21,7 @@ describe("search.sh behavior", () => {
     await fs.rm(cwd, { recursive: true, force: true });
     await fs.mkdir(cwd, { recursive: true });
 
-    await exec(RUN, [
+    await exec(START, [
       "--name",
       "search-agent",
       "--prompt",

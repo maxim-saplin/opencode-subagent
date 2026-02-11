@@ -4,6 +4,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { describe, it, expect, afterAll } from "bun:test";
 import { mockEnv, scriptPath } from "./helpers/mock-opencode";
+import { waitForStatusDone } from "./helpers/wait";
 import { cleanupTempDirs } from "./helpers/cleanup";
 
 const exec = promisify(execFile);
@@ -20,7 +21,7 @@ async function readContractMajor() {
 
 afterAll(cleanupTempDirs);
 
-const RUN = scriptPath("run_subagent.sh");
+const START = scriptPath("start_subagent.sh");
 const RESULT = scriptPath("result.sh");
 
 describe("result.sh behavior", () => {
@@ -38,11 +39,11 @@ describe("result.sh behavior", () => {
     expect(json.ok).toBe(false);
   });
 
-  it("returns last assistant text with --wait", async () => {
+  it("returns last assistant text when done", async () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "result-ok");
     await fs.mkdir(cwd, { recursive: true });
 
-    await exec(RUN, [
+    await exec(START, [
       "--name",
       "result-agent",
       "--prompt",
@@ -51,12 +52,11 @@ describe("result.sh behavior", () => {
       cwd,
     ], { cwd, env: mockEnv(cwd) });
 
+    await waitForStatusDone(cwd, "result-agent");
+
     const { stdout } = await exec(RESULT, [
       "--name",
       "result-agent",
-      "--wait",
-      "--timeout",
-      "10",
       "--cwd",
       cwd,
       "--json",
@@ -76,7 +76,7 @@ describe("result.sh behavior", () => {
     await fs.mkdir(target, { recursive: true });
     await fs.rm(path.join(root, ".opencode-subagent"), { recursive: true, force: true });
 
-    await exec(RUN, [
+    await exec(START, [
       "--name",
       "root-agent",
       "--prompt",
@@ -85,12 +85,11 @@ describe("result.sh behavior", () => {
       target,
     ], { cwd: root, env: mockEnv(target) });
 
+    await waitForStatusDone(root, "root-agent");
+
     const { stdout } = await exec(RESULT, [
       "--name",
       "root-agent",
-      "--wait",
-      "--timeout",
-      "10",
       "--json",
     ], {
       cwd: root,
@@ -100,6 +99,32 @@ describe("result.sh behavior", () => {
     const json = JSON.parse(String(stdout ?? "").trim());
     expect(json.ok).toBe(true);
     expect(json.lastAssistantText).toBe("ROOT_OK");
+  });
+
+  it("returns status immediately when agent is running", async () => {
+    const cwd = path.join(ROOT, ".tmp", "tests", "result-running");
+    await fs.rm(cwd, { recursive: true, force: true });
+    await fs.mkdir(cwd, { recursive: true });
+
+    await exec(START, [
+      "--name",
+      "running-agent",
+      "--prompt",
+      "MOCK:SLEEP:5 MOCK:REPLY:LATER",
+      "--cwd",
+      cwd,
+    ], { cwd, env: mockEnv(cwd) });
+
+    for (let i = 0; i < 50; i += 1) {
+      const status = await exec(RESULT, ["--name", "running-agent", "--cwd", cwd, "--json"], { cwd, env: mockEnv(cwd) });
+      const json = JSON.parse(String(status.stdout ?? "").trim());
+      if (json.ok && (json.status === "running" || json.status === "scheduled")) {
+        expect(json.lastAssistantText).toBeNull();
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    throw new Error("Agent did not reach running/scheduled in time");
   });
 
   it("fails fast when sessionId is missing", async () => {

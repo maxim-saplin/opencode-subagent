@@ -1,5 +1,12 @@
 # opencode-subagent
 
+## 5.0.0 (v5)
+
+- **Breaking**: Split `run_subagent.sh` into `start_subagent.sh` and `resume_subagent.sh`.
+- **Breaking**: Removed `--timeout` from status (use `OPENCODE_PSA_WAIT_TIMEOUT_SEC` env, default 100).
+- **Breaking**: Removed `--wait` and `--timeout` from result; result is now sync-only (returns status when agent is running).
+- **Fix**: Export now writes to a temp file instead of a pipe, avoiding 128 KB stdout truncation.
+
 ## 4.0.0 (v4)
 
 - Added status daemon with cached usage and ASCII dashboard output.

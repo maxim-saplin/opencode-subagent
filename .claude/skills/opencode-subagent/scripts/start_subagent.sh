@@ -56,5 +56,4 @@ require_cmd node
 
 debounce_start
 
-exec node "$CLI" run "$@"
-
+exec node "$CLI" start "$@"
