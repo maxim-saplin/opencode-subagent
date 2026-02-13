@@ -1,5 +1,10 @@
 # opencode-subagent
 
+## 5.0.3 (v5)
+
+- **B-023**: `DIALOG_TKN` now includes cached input tokens (`tokens.cache.read`) in addition to non-cached input tokens. Previously only `tokens.input` was reported, drastically understating dialog size when prompt caching was active (e.g. 565 reported vs 9397 actual).
+- Added LLM test `L11` (`tests/llm/dialog_tokens.spec.ts`) verifying dialog token accounting with cache.read.
+
 ## 5.0.2 (v5)
 
 - **B-022-A**: FULL column now populated via `opencode models --verbose` context window cache built at daemon startup, since real opencode exports lack context window metadata.

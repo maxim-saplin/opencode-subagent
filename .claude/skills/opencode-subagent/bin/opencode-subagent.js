@@ -626,8 +626,12 @@ function extractDialogTokens(messages) {
     const info = m.info && typeof m.info === "object" ? m.info : null;
     const infoTokens = info && typeof info.tokens === "object" ? info.tokens : null;
     const directTokens = m.tokens && typeof m.tokens === "object" ? m.tokens : null;
-    const input = coerceFiniteNumber(infoTokens ? infoTokens.input : directTokens ? directTokens.input : null);
-    if (input !== null && input > 0) return input;
+    const tokens = infoTokens || directTokens;
+    const input = coerceFiniteNumber(tokens ? tokens.input : null) || 0;
+    const cache = tokens && typeof tokens.cache === "object" ? tokens.cache : null;
+    const cacheRead = coerceFiniteNumber(cache ? cache.read : null) || 0;
+    const dialog = input + cacheRead;
+    if (dialog > 0) return dialog;
   }
   return null;
 }
