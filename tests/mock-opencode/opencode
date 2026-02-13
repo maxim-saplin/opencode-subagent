@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /* eslint-disable no-console */
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 
 const args = process.argv.slice(2);
@@ -10,9 +11,18 @@ const cwd = process.cwd();
 const ROOT = process.env.OPENCODE_MOCK_DIR || path.join(cwd, ".mock-opencode");
 const SESSIONS_DIR = path.join(ROOT, "sessions");
 const COUNTER_FILE = path.join(ROOT, "counter.txt");
+const OPENCODE_STORAGE_DIR = path.join(
+  process.env.XDG_DATA_HOME || path.join(os.homedir(), ".local", "share"),
+  "opencode",
+  "storage"
+);
+const STORAGE_SESSION_DIR = path.join(OPENCODE_STORAGE_DIR, "session", "mock-project");
+const STORAGE_MESSAGE_ROOT = path.join(OPENCODE_STORAGE_DIR, "message");
 
 function ensureDirs() {
   fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+  fs.mkdirSync(STORAGE_SESSION_DIR, { recursive: true });
+  fs.mkdirSync(STORAGE_MESSAGE_ROOT, { recursive: true });
 }
 
 function nowMs() {
@@ -102,12 +112,58 @@ function parseMockDirectives(prompt) {
   const sleepMatch = prompt.match(/MOCK:SLEEP:([0-9.]+)/);
   const exitMatch = prompt.match(/MOCK:EXIT:([0-9]+)/);
   const attach = prompt.includes("MOCK:ATTACH");
+  const task = prompt.includes("MOCK:TASK");
 
   return {
     replyToken: replyMatch ? replyMatch[1] : "",
     sleepSeconds: sleepMatch ? Number(sleepMatch[1]) : 0,
     exitCode: exitMatch ? Number(exitMatch[1]) : null,
     attach,
+    task,
+  };
+}
+
+function writeChildStorage(parentSessionId, model) {
+  const childId = nextSessionId();
+  const nowIso = new Date().toISOString();
+
+  fs.mkdirSync(STORAGE_SESSION_DIR, { recursive: true });
+  fs.writeFileSync(
+    path.join(STORAGE_SESSION_DIR, `${childId}.json`),
+    JSON.stringify({
+      id: childId,
+      parentID: parentSessionId,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+      model,
+    }),
+    "utf8"
+  );
+
+  const msgDir = path.join(STORAGE_MESSAGE_ROOT, childId);
+  fs.mkdirSync(msgDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(msgDir, "0001.json"),
+    JSON.stringify({
+      info: {
+        role: "assistant",
+        tokens: { input: 180, cache: { read: 20 }, output: 90 },
+        cost: 0.001,
+      },
+      role: "assistant",
+      tokens: { input: 180, cache: { read: 20 }, output: 90 },
+      cost: 0.001,
+      parts: [{ type: "text", text: "child-complete" }],
+    }),
+    "utf8"
+  );
+
+  return {
+    childId,
+    title: "List implementation details and summarize",
+    status: "completed",
+    startedAt: nowIso,
+    finishedAt: nowIso,
   };
 }
 
@@ -144,7 +200,7 @@ async function runCommand(runArgs) {
   }
   saveSession(sess);
 
-  const { replyToken, sleepSeconds, exitCode, attach } = parseMockDirectives(prompt || "");
+  const { replyToken, sleepSeconds, exitCode, attach, task } = parseMockDirectives(prompt || "");
 
   if (exitCode !== null) {
     if (sleepSeconds && sleepSeconds > 0) {
@@ -167,9 +223,29 @@ async function runCommand(runArgs) {
   sess = loadSession(id);
   sess.updated = nowMs();
   const tokenCount = Math.max(1, String(reply || "").length);
+  const parts = [{ type: "text", text: reply }];
+  if (task) {
+    const child = writeChildStorage(id, sess.model);
+    parts.push({
+      type: "tool",
+      tool: "task",
+      state: {
+        status: child.status,
+        title: child.title,
+        metadata: {
+          sessionId: child.childId,
+          model: sess.model,
+        },
+        time: {
+          start: child.startedAt,
+          end: child.finishedAt,
+        },
+      },
+    });
+  }
   sess.messages.push({
     info: { role: "assistant", tokens: { input: tokenCount } },
-    parts: [{ type: "text", text: reply }],
+    parts,
   });
   saveSession(sess);
 

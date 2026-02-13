@@ -100,6 +100,7 @@ Semantics:
 
 - --wait: returns when any agent status changes (legacy behavior).
 - --wait-terminal: waits until the target --name reaches done or unknown.
+- --diagram: includes one-level task-tool child subagents (indented rows) discovered from parent exports and local OpenCode storage.
 
 Timeout is configured via `OPENCODE_PSA_WAIT_TIMEOUT_SEC` (default: 100, 0 = forever).
 

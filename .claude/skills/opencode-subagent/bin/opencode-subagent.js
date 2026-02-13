@@ -25,6 +25,11 @@ const USAGE_RETRY_BASE_MS = 2000;
 const USAGE_RETRY_MAX_MS = 60000;
 const USAGE_LOG_MAX_BYTES = 1024 * 1024;
 const USAGE_LOG_TAIL_LINES = 200;
+const OPENCODE_STORAGE_DIR = path.join(
+  process.env.XDG_DATA_HOME || path.join(os.homedir(), ".local", "share"),
+  "opencode",
+  "storage"
+);
 
 function parseMajorVersion(value) {
   if (typeof value === "number" && Number.isFinite(value)) return Math.trunc(value);
@@ -320,6 +325,17 @@ function sanitizeAgentForStatus(record) {
   if (record.model !== undefined) out.model = record.model;
   if (record.variant !== undefined) out.variant = record.variant;
   if (record.resumeCount !== undefined) out.resumeCount = record.resumeCount;
+  if (Array.isArray(record.children)) {
+    out.children = record.children.map((child) => ({
+      sessionId: child && child.sessionId !== undefined ? child.sessionId : null,
+      status: child && child.status !== undefined ? child.status : null,
+      title: child && child.title !== undefined ? child.title : null,
+      model: child && child.model !== undefined ? child.model : null,
+      startedAt: child && child.startedAt !== undefined ? child.startedAt : null,
+      finishedAt: child && child.finishedAt !== undefined ? child.finishedAt : null,
+      usage: child && child.usage !== undefined ? child.usage : null,
+    }));
+  }
   return out;
 }
 
@@ -662,6 +678,86 @@ function buildUsage(exportData, modelContextMap, registryModel) {
   return { messageCount, dialogTokens, contextFullPct };
 }
 
+function formatModelRef(model) {
+  if (!model) return null;
+  if (typeof model === "string") return model;
+  if (typeof model !== "object") return null;
+  const providerID = typeof model.providerID === "string" ? model.providerID : "";
+  const modelID = typeof model.modelID === "string" ? model.modelID : "";
+  if (!providerID || !modelID) return null;
+  return `${providerID}/${modelID}`;
+}
+
+function extractTaskChildren(exportData) {
+  if (!exportData || typeof exportData !== "object" || !Array.isArray(exportData.messages)) return [];
+  const bySessionId = new Map();
+  const order = [];
+
+  for (const message of exportData.messages) {
+    if (!message || typeof message !== "object" || !Array.isArray(message.parts)) continue;
+    for (const part of message.parts) {
+      if (!part || typeof part !== "object") continue;
+      if (part.type !== "tool" || part.tool !== "task") continue;
+      const state = part.state && typeof part.state === "object" ? part.state : null;
+      const metadata = state && state.metadata && typeof state.metadata === "object" ? state.metadata : null;
+      const sessionId = metadata && typeof metadata.sessionId === "string" ? metadata.sessionId : "";
+      if (!sessionId) continue;
+      const model = metadata ? formatModelRef(metadata.model) : null;
+      const title = state && typeof state.title === "string" ? state.title : null;
+      const status = state && typeof state.status === "string" ? state.status : null;
+      const time = state && state.time && typeof state.time === "object" ? state.time : null;
+      const startedAt = time && typeof time.start === "string" ? time.start : null;
+      const finishedAt = time && typeof time.end === "string" ? time.end : null;
+
+      if (!bySessionId.has(sessionId)) order.push(sessionId);
+      bySessionId.set(sessionId, {
+        sessionId,
+        status,
+        title,
+        model,
+        startedAt,
+        finishedAt,
+      });
+    }
+  }
+
+  return order.map((id) => bySessionId.get(id)).filter(Boolean);
+}
+
+async function readChildUsageFromStorage(sessionId) {
+  if (!sessionId || typeof sessionId !== "string") return null;
+  try {
+    const dir = path.join(OPENCODE_STORAGE_DIR, "message", sessionId);
+    const files = (await fsp.readdir(dir))
+      .filter((name) => name.endsWith(".json"))
+      .sort();
+    const messages = [];
+    for (const file of files) {
+      const full = path.join(dir, file);
+      try {
+        const text = await fsp.readFile(full, "utf8");
+        const parsed = JSON.parse(text);
+        if (parsed && typeof parsed === "object") {
+          if (Array.isArray(parsed.messages)) {
+            for (const msg of parsed.messages) messages.push(msg);
+          } else if (parsed.message && typeof parsed.message === "object") {
+            messages.push(parsed.message);
+          } else {
+            messages.push(parsed);
+          }
+        }
+      } catch {
+        // Ignore malformed or partially written files while child session streams.
+      }
+    }
+    const messageCount = messages.length;
+    const dialogTokens = extractDialogTokens(messages);
+    return { messageCount, dialogTokens, contextFullPct: null };
+  } catch {
+    return null;
+  }
+}
+
 async function appendUsageLog(root, entry) {
   const dir = registryDir(root);
   await fsp.mkdir(dir, { recursive: true });
@@ -777,6 +873,15 @@ function renderDiagram(agents, nowMs) {
   const allAgents = Array.isArray(agents) ? agents : [];
   const liveAgents = allAgents.filter((agent) => agent && (agent.status === "running" || agent.status === "scheduled"));
   const doneAgents = allAgents.filter((agent) => agent && (agent.status === "done" || agent.status === "unknown"));
+  const truncate = (value, max) => {
+    const text = String(value ?? "");
+    if (text.length <= max) return text;
+    return `${text.slice(0, Math.max(0, max - 3))}...`;
+  };
+  const childName = (title) => {
+    const suffix = title ? `:${title}` : "";
+    return `  - ${truncate(`task${suffix}`, 20)}`;
+  };
 
   const toUsageColumns = (agent) => {
     const usage = agent && agent.usage && typeof agent.usage === "object" ? agent.usage : null;
@@ -786,19 +891,22 @@ function renderDiagram(agents, nowMs) {
     return { messageCount, dialogTokens, pct };
   };
 
-  const liveRows = liveAgents.map((agent) => {
+  const toModel = (agent) => {
+    const modelBase = agent && agent.model ? agent.model : "-";
+    const variantSuffix = agent && agent.variant ? `-${agent.variant}` : "";
+    return modelBase !== "-" ? modelBase + variantSuffix : "-";
+  };
+
+  const baseLiveRow = (agent) => {
     const startedAt = formatTimestamp(agent.startedAt);
     const runtimeMs = parseTimeMs(agent.startedAt);
     const runtime = runtimeMs === null ? "-" : formatDuration(nowMs - runtimeMs);
     const { messageCount, dialogTokens, pct } = toUsageColumns(agent);
-    const modelBase = agent.model || "-";
-    const variantSuffix = agent.variant ? `-${agent.variant}` : "";
-    const model = modelBase !== "-" ? modelBase + variantSuffix : "-";
     const resumed = typeof agent.resumeCount === "number" && agent.resumeCount > 0 ? String(agent.resumeCount) : "-";
     return {
       name: agent && agent.name ? String(agent.name) : "",
       status: agent && agent.status ? String(agent.status) : "",
-      model,
+      model: toModel(agent),
       pid: agent && agent.pid ? String(agent.pid) : "-",
       startedAt,
       runtime,
@@ -807,23 +915,20 @@ function renderDiagram(agents, nowMs) {
       dialogTokens,
       pct,
     };
-  });
+  };
 
-  const doneRows = doneAgents.map((agent) => {
+  const baseDoneRow = (agent) => {
     const startedAt = formatTimestamp(agent.startedAt);
     const finishedAt = formatTimestamp(agent.finishedAt);
     const startMs = parseTimeMs(agent.startedAt);
     const endMs = parseTimeMs(agent.finishedAt);
     const runtime = startMs === null || endMs === null ? "-" : formatDuration(endMs - startMs);
     const { messageCount, dialogTokens, pct } = toUsageColumns(agent);
-    const modelBase = agent.model || "-";
-    const variantSuffix = agent.variant ? `-${agent.variant}` : "";
-    const model = modelBase !== "-" ? modelBase + variantSuffix : "-";
     const resumed = typeof agent.resumeCount === "number" && agent.resumeCount > 0 ? String(agent.resumeCount) : "-";
     return {
       name: agent && agent.name ? String(agent.name) : "",
       status: agent && agent.status ? String(agent.status) : "",
-      model,
+      model: toModel(agent),
       pid: agent && agent.pid ? String(agent.pid) : "-",
       startedAt,
       finishedAt,
@@ -833,7 +938,57 @@ function renderDiagram(agents, nowMs) {
       dialogTokens,
       pct,
     };
-  });
+  };
+
+  const liveRows = [];
+  for (const agent of liveAgents) {
+    liveRows.push(baseLiveRow(agent));
+    const children = Array.isArray(agent.children) ? agent.children : [];
+    const liveChildren = children.filter((child) => child && child.status === "running");
+    for (const child of liveChildren) {
+      const runtimeMs = parseTimeMs(child.startedAt);
+      const runtime = runtimeMs === null ? "-" : formatDuration(nowMs - runtimeMs);
+      const { messageCount, dialogTokens, pct } = toUsageColumns(child);
+      liveRows.push({
+        name: childName(child.title),
+        status: child.status || "-",
+        model: child.model || "-",
+        pid: "-",
+        startedAt: formatTimestamp(child.startedAt),
+        runtime,
+        resumed: "-",
+        messageCount,
+        dialogTokens,
+        pct,
+      });
+    }
+  }
+
+  const doneRows = [];
+  for (const agent of doneAgents) {
+    doneRows.push(baseDoneRow(agent));
+    const children = Array.isArray(agent.children) ? agent.children : [];
+    const finishedChildren = children.filter((child) => child && child.status === "completed");
+    for (const child of finishedChildren) {
+      const startMs = parseTimeMs(child.startedAt);
+      const endMs = parseTimeMs(child.finishedAt);
+      const runtime = startMs === null || endMs === null ? "-" : formatDuration(endMs - startMs);
+      const { messageCount, dialogTokens, pct } = toUsageColumns(child);
+      doneRows.push({
+        name: childName(child.title),
+        status: child.status || "-",
+        model: child.model || "-",
+        pid: "-",
+        startedAt: formatTimestamp(child.startedAt),
+        finishedAt: formatTimestamp(child.finishedAt),
+        runtime,
+        resumed: "-",
+        messageCount,
+        dialogTokens,
+        pct,
+      });
+    }
+  }
 
   const lines = [];
   lines.push("LIVE AGENTS");
@@ -1280,11 +1435,16 @@ async function statusDaemon() {
       try {
         const exportData = await exportSessionJson(sessionId, targetCwd);
         const usage = buildUsage(exportData, modelContextMap, agent.model);
+        const children = extractTaskChildren(exportData);
+        for (const child of children) {
+          child.usage = (await readChildUsageFromStorage(child.sessionId)) || null;
+        }
         await updateAgentUsage(registryRoot, name, (record) => {
           if (!record || record.sessionId !== sessionId) return null;
           return {
             ...record,
             usage,
+            children,
             usageUpdatedAt: nowIso(),
             usageRetryAt: null,
             usageAttempt: null,

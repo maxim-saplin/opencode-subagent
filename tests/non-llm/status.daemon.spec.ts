@@ -151,6 +151,51 @@ describe("status daemon + usage cache", () => {
     });
   }, 25000);
 
+  it("discovers task-tool children and reports child usage", async () => {
+    const cwd = path.join(ROOT, ".tmp", "tests", "status-daemon-children");
+    await fs.rm(cwd, { recursive: true, force: true });
+    await fs.mkdir(cwd, { recursive: true });
+
+    await exec(START, [
+      "--name",
+      "daemon-child-agent",
+      "--prompt",
+      "MOCK:TASK MOCK:REPLY:PARENT",
+      "--cwd",
+      cwd,
+    ], { cwd, env: mockEnv(cwd) });
+
+    await waitForStatusDone(cwd, "daemon-child-agent", 15);
+
+    await waitForCondition(async () => {
+      const json = await fetchStatus(cwd, "daemon-child-agent");
+      const agent = (json.agents || [])[0];
+      if (!agent) return false;
+      const child = Array.isArray(agent.children) ? agent.children[0] : null;
+      if (!child) return false;
+      return Boolean(
+        child.sessionId &&
+          child.status &&
+          child.model &&
+          child.usage &&
+          child.usage.messageCount > 0 &&
+          child.usage.dialogTokens > 0
+      );
+    }, 10000, 250);
+
+    const json = await fetchStatus(cwd, "daemon-child-agent");
+    const agent = (json.agents || [])[0];
+    expect(agent).toBeTruthy();
+    expect(Array.isArray(agent.children)).toBe(true);
+    expect(agent.children.length).toBeGreaterThan(0);
+    const child = agent.children[0];
+    expect(child.sessionId).toMatch(/^ses_/);
+    expect(child.status).toBe("completed");
+    expect(child.model).toContain("opencode/");
+    expect(child.usage.messageCount).toBeGreaterThan(0);
+    expect(child.usage.dialogTokens).toBeGreaterThan(0);
+  }, 30000);
+
   it("logs export failures without surfacing them in status", async () => {
     const cwd = path.join(ROOT, ".tmp", "tests", "status-daemon-log");
     await fs.rm(cwd, { recursive: true, force: true });

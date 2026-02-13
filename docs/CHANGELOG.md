@@ -1,5 +1,11 @@
 # opencode-subagent
 
+## 5.0.4 (v5)
+
+- Added task-tool child tracking in the status daemon: parent exports are scanned for `tool:"task"` parts, child session IDs are extracted, and child token usage is read from OpenCode local storage.
+- Extended `status --diagram` to render indented task-child rows under parent agents, including child status, model, runtime, and usage columns.
+- Added non-LLM daemon coverage for task-child discovery/usage, and mock-opencode `MOCK:TASK` support that emits task tool parts plus synthetic child storage messages.
+
 ## 5.0.3 (v5)
 
 - **B-023**: `DIALOG_TKN` now includes cached input tokens (`tokens.cache.read`) in addition to non-cached input tokens. Previously only `tokens.input` was reported, drastically understating dialog size when prompt caching was active (e.g. 565 reported vs 9397 actual).
