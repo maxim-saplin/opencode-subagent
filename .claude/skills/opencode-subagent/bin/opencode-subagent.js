@@ -255,6 +255,43 @@ async function upsertAgentWithRetry(root, record, attempts = 3) {
   throw lastErr;
 }
 
+function mergeDaemonManagedFields(prev, next) {
+  if (!prev || typeof prev !== "object" || !next || typeof next !== "object") return next;
+  const out = { ...next };
+  // Daemon-managed fields should not be wiped by worker lifecycle updates.
+  const fields = ["usage", "children", "usageUpdatedAt", "usageRetryAt", "usageAttempt", "usageError"];
+  for (const key of fields) {
+    if (out[key] === undefined && prev[key] !== undefined) out[key] = prev[key];
+  }
+  return out;
+}
+
+async function upsertAgentPreservingDaemonFields(root, record) {
+  return withRegistryLock(root, async () => {
+    const registry = await readRegistry(root);
+    if (!registry.agents || typeof registry.agents !== "object") registry.agents = {};
+    const prev = registry.agents[record.name];
+    registry.agents[record.name] = mergeDaemonManagedFields(prev, record);
+    registry.updatedAt = record.updatedAt || nowIso();
+    await writeRegistryAtomic(root, registry);
+    return registry;
+  });
+}
+
+async function upsertAgentPreservingDaemonFieldsWithRetry(root, record, attempts = 3) {
+  let lastErr = null;
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      await upsertAgentPreservingDaemonFields(root, record);
+      return;
+    } catch (err) {
+      lastErr = err;
+      await delay(LOCK_RETRY_MS * 5);
+    }
+  }
+  throw lastErr;
+}
+
 async function refreshRegistry(root, names) {
   return withRegistryLock(root, async () => {
     const registry = await readRegistry(root);
@@ -1353,13 +1390,13 @@ async function runWorker() {
       cwd,
     };
 
-    await upsertAgentWithRetry(registryRoot, runningRecord, 10);
+    await upsertAgentPreservingDaemonFieldsWithRetry(registryRoot, runningRecord, 10);
 
     if (!discovered) {
       discovered = await discoverSessionId(title, cwd, 40);
       if (discovered) {
         const updated = { ...runningRecord, sessionId: discovered, updatedAt: nowIso() };
-        await upsertAgentWithRetry(registryRoot, updated, 10);
+        await upsertAgentPreservingDaemonFieldsWithRetry(registryRoot, updated, 10);
       }
     }
 
@@ -1374,6 +1411,25 @@ async function runWorker() {
     const errorInfo = spawnError ? String(spawnError.message || spawnError) : null;
     const stderrTrimmed = stderr.trim() || null;
     const finishedAt = nowIso();
+
+    // Best-effort: compute final usage + task-tool children immediately so fast runs
+    // don't miss daemon enrichment windows. This is still timeout-bounded by export.
+    let finalUsage;
+    let finalChildren;
+    const finalSessionId = discovered || sessionId;
+    if (finalSessionId) {
+      try {
+        const exportData = await exportSessionJson(finalSessionId, cwd);
+        finalUsage = buildUsage(exportData, null, model);
+        finalChildren = extractTaskChildren(exportData);
+        for (const child of finalChildren) {
+          child.usage = (await readChildUsageFromStorage(child.sessionId)) || null;
+        }
+      } catch {
+        // ignore export failures; daemon/logging covers retries
+      }
+    }
+
     const doneRecord = {
       name,
       pid,
@@ -1383,6 +1439,8 @@ async function runWorker() {
       startedAt,
       updatedAt: finishedAt,
       finishedAt,
+      ...(finalUsage ? { usage: finalUsage } : {}),
+      ...(Array.isArray(finalChildren) && finalChildren.length ? { children: finalChildren } : {}),
       model,
       variant: variant || null,
       resumeCount,
@@ -1392,7 +1450,7 @@ async function runWorker() {
       stderr: stderrTrimmed,
     };
     try {
-      await upsertAgentWithRetry(registryRoot, doneRecord, 10);
+      await upsertAgentPreservingDaemonFieldsWithRetry(registryRoot, doneRecord, 10);
     } catch {
       // last-resort: avoid crashing the worker before exit
     }

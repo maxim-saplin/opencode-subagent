@@ -63,6 +63,15 @@ Use mock prompts for predictable timing and outcomes:
 - D05: Export failure appends a JSON line to .opencode-subagent/usage-export.log.
 - D06: status --diagram renders cached usage without blocking.
 
+#### 4) TUI Dashboard (Non-LLM)
+
+Deterministic tests for the dash TUI using a mock DataProvider; no live opencode required.
+
+- **Data:** `tests/non-llm/tui.data.spec.ts` — registry parsing, child extraction, token/formatter helpers.
+- **Render:** `tests/non-llm/tui.render.spec.tsx` — Dashboard/AgentDialog/ChildrenPanel output with ink-testing-library.
+- **Navigation:** `tests/non-llm/tui.navigation.spec.tsx` — screen transitions, keybindings, selection.
+- **Crawl:** `tests/non-llm/tui.crawl.spec.tsx` — deterministic screen-graph crawl at constrained terminal sizes (dashboard → children → dialog → back).
+
 ## LLM-Dependent Suite
 
 Purpose: validate real OpenCode CLI behavior + real model execution, while keeping the set small and high-signal.

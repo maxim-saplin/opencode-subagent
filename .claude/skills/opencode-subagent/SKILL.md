@@ -7,7 +7,7 @@ metadata:
   kind: subagent
 ---
 
-Run OpenCode sessions. All runs are async (background). A JSON registry tracks lifecycle state reliably: `scheduled → running → done`. The orchestrator can introspect and resume 'done' sessions providing new instructions. Prefer for long runnings cmoplex sessnsion OVER default subagents tools, such as 'Task', which are by desgin one-off agent sessions with singular outputs and no way to resume.
+Run OpenCode sessions. All runs are async (background). A JSON registry tracks lifecycle state reliably: `scheduled → running → done`. The orchestrator can introspect and resume `done` sessions with new instructions. Prefer this for long-running, complex sessions over one-off agent tools (like `Task`), which are designed for single outputs and cannot be resumed.
 
 ## Status model
 
@@ -186,3 +186,17 @@ Common fields:
 | OPENCODE_PSA_MODEL            | (none)             | Default model if --model is omitted.                                 |
 | OPENCODE_PSA_VARIANT          | (none)             | Default variant if --variant is omitted.                             |
 | OPENCODE_PSA_WAIT_TIMEOUT_SEC | 100                | Max seconds for status --wait and --wait-terminal. 0 = wait forever. |
+
+## TUI Dashboard (Human Use Only)
+
+A terminal dashboard for interactive monitoring. Not part of the orchestrator contract.
+
+```sh
+dash.sh [--cwd <dir>] [--refresh <seconds>]
+```
+
+- **--cwd <dir>**: Registry root (default: current directory).
+- **--refresh <n>**: Poll interval in seconds (default: 2).
+- **Dialog navigation**: `j/k` or arrows scroll, `t` toggles tool expansion, `Esc` goes back, `q` quits.
+
+Launch from the skill directory: `scripts/dash.sh` (invokes `dash/opencode-dash.js`). Requires Node.

@@ -1,15 +1,21 @@
 {
   "name": "opencode-subagent-skill-dev",
-  "version": "5.0.4",
+  "version": "5.0.5",
   "private": true,
   "scripts": {
     "test": "bun test",
     "test:nonllm": "bun test tests/non-llm",
-    "test:llm": "bun test tests/llm"
+    "test:llm": "bun test tests/llm",
+    "build:tui": "esbuild src/tui/index.tsx --bundle --platform=node --target=node18 --format=esm --outfile=.claude/skills/opencode-subagent/dash/opencode-dash.js --banner:js='import { createRequire as __createRequire } from \"node:module\";const require = __createRequire(import.meta.url);'"
   },
   "devDependencies": {
     "@types/node": "^20.11.30",
+    "@types/react": "^18.2.0",
     "bun-types": "^1.1.0",
+    "ink": "^5.1.0",
+    "react": "^18.2.0",
+    "esbuild": "^0.24.0",
+    "ink-testing-library": "^4.0.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   }

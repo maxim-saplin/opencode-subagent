@@ -166,3 +166,23 @@ These are the prompts and fixtures used across scenarios.
 - `usage` appears while running and remains after completion.
 - Diagram renders cached usage without blocking.
 - Daemon stops after all agents are terminal.
+
+## Scenario 11 — TUI Dashboard
+
+**Goal:** Validate the interactive TUI dashboard: launch, rendering, navigation, and edge cases.
+
+**Preconditions:** Run at least one agent so the registry has entries (e.g., TT1 with token `TUI_DASH_OK`).
+
+**Steps:**
+1. **Launch:** Run `dash.sh --cwd .tmp/opencode-psa` (or default cwd). Confirm the process starts and a TUI appears.
+2. **Dashboard rendering:** Verify agent rows show name, status, PID, model, and usage when available. Child subagents (from diagram) appear indented.
+3. **Dialog drill-down:** Select a row with a sessionId (Enter). Confirm dialog view shows messages and tool blocks; toggle tools view with `t` if applicable.
+4. **Children panel:** For an agent with children, press `c`. Confirm children list; select one with Enter to open its dialog.
+5. **Keybindings:** Dashboard/Children: `j`/`k` or arrow keys move selection; Dialog: `j`/`k` or arrow keys scroll; `t` toggles tool expansion; `Escape` goes back; `q` quits.
+6. **Refresh behavior:** Leave dashboard idle for at least one refresh interval; confirm rows update without manual input.
+7. **Error/empty state:** Run dash with `--cwd` pointing to a directory with no registry or empty registry; confirm graceful empty-state display. If registry is invalid, expect no crash.
+
+**Expected:**
+- Dashboard renders correctly with live data.
+- Dialog and children drill-down work; keybindings behave as described.
+- Refresh keeps data in sync; empty/invalid state does not crash.

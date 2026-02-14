@@ -20,7 +20,9 @@
 
 ## Tests
 - bun test tests/non-llm
+- bun test tests/non-llm/tui.input.spec.ts tests/non-llm/tui.render.spec.tsx tests/non-llm/tui.navigation.spec.tsx
 - OPENCODE_PSA_MODEL=... bun test tests/llm
+- bun run build:tui
 - Manual QA: docs/TEST-CASES-MANUAL.md
 
 ## Docs
@@ -32,6 +34,7 @@
 - CLI changes: update tests + docs; keep wrappers thin.
 - Registry/daemon changes: update tests/non-llm/status.daemon.spec.ts + PLAN-STATUS-DAEMON.md.
 - Export/session parsing changes: update parser + tests/llm/cli_stability.spec.ts.
+- TUI changes: update src/tui tests (tui.*.spec.ts), rebuild dash bundle (`bun run build:tui`), and docs (TEST-CASES-MANUAL, TEST-AUTOMATION).
 
 ## Gotchas
 - Registry root is process.cwd(), not --cwd.

@@ -1,5 +1,9 @@
 # opencode-subagent
 
+## 5.0.5 (v5)
+
+- TUI dashboard dash.sh
+
 ## 5.0.4 (v5)
 
 - Added task-tool child tracking in the status daemon: parent exports are scanned for `tool:"task"` parts, child session IDs are extracted, and child token usage is read from OpenCode local storage.
